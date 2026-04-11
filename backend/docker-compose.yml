@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -34,17 +32,19 @@ services:
       retries: 10
 
   migrate:
-    image: ghcr.io/pressly/goose:latest
+    build:
+      context: .
+      dockerfile: docker/goose.Dockerfile
     container_name: generate_cv_migrate
-    # Tự thoát sau khi chạy xong — không restart
     restart: "no"
-    environment:
-      GOOSE_DRIVER: postgres
-      GOOSE_DBSTRING: "host=postgres port=5432 user=${DB_USER:-postgres} password=${DB_PASSWORD:-postgres} dbname=${DB_NAME:-generate_cv} sslmode=disable"
     volumes:
-      # Mount thư mục migrations vào container
       - ./db/migrations:/migrations
-    command: ["-dir", "/migrations", "up"]
+    command:
+      - "-dir"
+      - "/migrations"
+      - "postgres"
+      - "host=postgres port=5432 user=${DB_USER:-postgres} password=${DB_PASSWORD:-postgres} dbname=${DB_NAME:-generate_cv} sslmode=disable"
+      - "up"
     depends_on:
       postgres:
         condition: service_healthy
