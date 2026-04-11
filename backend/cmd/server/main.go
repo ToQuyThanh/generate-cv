@@ -13,6 +13,7 @@ import (
 
 	"github.com/yourname/generate-cv/config"
 	"github.com/yourname/generate-cv/internal/router"
+	"github.com/yourname/generate-cv/pkg/database"
 )
 
 func main() {
@@ -22,10 +23,25 @@ func main() {
 		log.Fatalf("failed to load config: %v", err)
 	}
 
-	// 2. Build router
-	r := router.New(cfg)
+	// 2. Connect to PostgreSQL
+	ctx := context.Background()
+	pool, err := database.NewPool(ctx, cfg.DB)
+	if err != nil {
+		log.Fatalf("failed to connect to database: %v", err)
+	}
+	defer pool.Close()
+	log.Println("✅  Connected to PostgreSQL")
 
-	// 3. Create HTTP server
+	// 3. Run migrations
+	if err := database.RunMigrations(cfg.DB); err != nil {
+		log.Fatalf("failed to run migrations: %v", err)
+	}
+	log.Println("✅  Migrations applied")
+
+	// 4. Build router (inject pool for dependency wiring)
+	r := router.New(cfg, pool)
+
+	// 5. Create HTTP server
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%s", cfg.App.Port),
 		Handler:      r,
@@ -34,7 +50,7 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// 4. Start in background goroutine
+	// 6. Start in background goroutine
 	go func() {
 		log.Printf("🚀  Server listening on :%s  [env=%s]", cfg.App.Port, cfg.App.Env)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -42,16 +58,16 @@ func main() {
 		}
 	}()
 
-	// 5. Graceful shutdown on SIGINT / SIGTERM
+	// 7. Graceful shutdown on SIGINT / SIGTERM
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
 	log.Println("shutting down server…")
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	shutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	if err := srv.Shutdown(ctx); err != nil {
+	if err := srv.Shutdown(shutCtx); err != nil {
 		log.Fatalf("forced shutdown: %v", err)
 	}
 	log.Println("server stopped")
