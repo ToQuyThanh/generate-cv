@@ -96,6 +96,30 @@ func (r *UserRepository) UpdatePassword(ctx context.Context, id uuid.UUID, hashe
 	return err
 }
 
+// UpdateFields applies only non-nil fields (partial update).
+func (r *UserRepository) UpdateFields(ctx context.Context, id uuid.UUID, fullName, avatarURL *string) (*User, error) {
+	var u User
+	err := r.pool.QueryRow(ctx,
+		`UPDATE users SET
+		   full_name  = COALESCE($2, full_name),
+		   avatar_url = COALESCE($3, avatar_url),
+		   updated_at = NOW()
+		 WHERE id = $1
+		 RETURNING id, email, password, full_name, avatar_url, created_at, updated_at`,
+		id, fullName, avatarURL,
+	).Scan(&u.ID, &u.Email, &u.Password, &u.FullName, &u.AvatarURL, &u.CreatedAt, &u.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
+// Delete hard-deletes the user. CASCADE on DB will remove CVs, tokens, subscription.
+func (r *UserRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	_, err := r.pool.Exec(ctx, `DELETE FROM users WHERE id = $1`, id)
+	return err
+}
+
 // ─── RefreshToken ─────────────────────────────────────────────────────────────
 
 type RefreshToken struct {
@@ -184,6 +208,20 @@ func (r *SubscriptionRepository) Create(ctx context.Context, userID uuid.UUID, p
 		 VALUES ($1, $2, $3)
 		 RETURNING id, user_id, plan, status, started_at, expires_at, updated_at`,
 		userID, plan, status,
+	).Scan(&s.ID, &s.UserID, &s.Plan, &s.Status, &s.StartedAt, &s.ExpiresAt, &s.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &s, nil
+}
+
+// GetByUserID returns the subscription for a given user, or pgx.ErrNoRows.
+func (r *SubscriptionRepository) GetByUserID(ctx context.Context, userID uuid.UUID) (*Subscription, error) {
+	var s Subscription
+	err := r.pool.QueryRow(ctx,
+		`SELECT id, user_id, plan, status, started_at, expires_at, updated_at
+		 FROM subscriptions WHERE user_id = $1 LIMIT 1`,
+		userID,
 	).Scan(&s.ID, &s.UserID, &s.Plan, &s.Status, &s.StartedAt, &s.ExpiresAt, &s.UpdatedAt)
 	if err != nil {
 		return nil, err

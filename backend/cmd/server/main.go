@@ -14,6 +14,8 @@ import (
 	"github.com/yourname/generate-cv/config"
 	"github.com/yourname/generate-cv/internal/router"
 	"github.com/yourname/generate-cv/pkg/database"
+	"github.com/yourname/generate-cv/pkg/redisutil"
+	"github.com/yourname/generate-cv/pkg/sentryutil"
 )
 
 func main() {
@@ -23,7 +25,13 @@ func main() {
 		log.Fatalf("failed to load config: %v", err)
 	}
 
-	// 2. Connect to PostgreSQL
+	// 2. Init Sentry (no-op if SENTRY_DSN is empty)
+	if err := sentryutil.Init(cfg.Sentry.DSN, cfg.App.Env, cfg.App.Release); err != nil {
+		log.Fatalf("failed to init sentry: %v", err)
+	}
+	defer sentryutil.Flush()
+
+	// 3. Connect to PostgreSQL
 	ctx := context.Background()
 	pool, err := database.NewPool(ctx, cfg.DB)
 	if err != nil {
@@ -32,16 +40,24 @@ func main() {
 	defer pool.Close()
 	log.Println("✅  Connected to PostgreSQL")
 
-	// 3. Run migrations
+	// 4. Run migrations
 	if err := database.RunMigrations(cfg.DB); err != nil {
 		log.Fatalf("failed to run migrations: %v", err)
 	}
 	log.Println("✅  Migrations applied")
 
-	// 4. Build router (inject pool for dependency wiring)
-	r := router.New(cfg, pool)
+	// 5. Connect to Redis
+	rdb, err := redisutil.NewClient(cfg.Redis.Addr, cfg.Redis.Password)
+	if err != nil {
+		log.Fatalf("failed to connect to redis: %v", err)
+	}
+	defer rdb.Close()
+	log.Println("✅  Connected to Redis")
 
-	// 5. Create HTTP server
+	// 6. Build router (inject pool + redis for dependency wiring)
+	r := router.New(cfg, pool, rdb)
+
+	// 7. Create HTTP server
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%s", cfg.App.Port),
 		Handler:      r,
@@ -50,7 +66,7 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// 6. Start in background goroutine
+	// 8. Start in background goroutine
 	go func() {
 		log.Printf("🚀  Server listening on :%s  [env=%s]", cfg.App.Port, cfg.App.Env)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -58,7 +74,7 @@ func main() {
 		}
 	}()
 
-	// 7. Graceful shutdown on SIGINT / SIGTERM
+	// 9. Graceful shutdown on SIGINT / SIGTERM
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
