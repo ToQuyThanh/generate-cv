@@ -11,22 +11,19 @@ import (
 	"golang.org/x/oauth2/google"
 
 	"github.com/yourname/generate-cv/config"
+	"github.com/yourname/generate-cv/internal/model"
 )
 
-// OAuthServiceIface is the subset used by the OAuth handler.
+// OAuthServiceIface is the narrow interface the Google handler depends on.
+// *service.AuthService satisfies this automatically.
 type OAuthServiceIface interface {
-	UpsertOAuthUser(ctx context.Context, email, fullName string, avatarURL *string) (*struct {
-		AccessToken  string `json:"access_token"`
-		RefreshToken string `json:"refresh_token"`
-	}, error)
+	UpsertOAuthUser(ctx context.Context, email, fullName string, avatarURL *string) (*model.AuthResponse, error)
 }
 
 // GoogleHandler handles Google OAuth2 redirect and callback.
 type GoogleHandler struct {
 	oauthCfg *oauth2.Config
-	authSvc  interface {
-		UpsertOAuthUser(ctx context.Context, email, fullName string, avatarURL *string) (interface{}, error)
-	}
+	authSvc  OAuthServiceIface
 }
 
 func NewGoogleHandler(cfg *config.Config) *GoogleHandler {
@@ -43,8 +40,8 @@ func NewGoogleHandler(cfg *config.Config) *GoogleHandler {
 	return &GoogleHandler{oauthCfg: oauthCfg}
 }
 
-// SetAuthService injects the auth service after construction (breaks circular import).
-func (h *GoogleHandler) SetAuthService(svc *AuthServiceWithOAuth) {
+// SetAuthService injects the auth service after construction.
+func (h *GoogleHandler) SetAuthService(svc OAuthServiceIface) {
 	h.authSvc = svc
 }
 
@@ -109,12 +106,4 @@ func fetchGoogleUserInfo(ctx context.Context, cfg *oauth2.Config, token *oauth2.
 		return nil, fmt.Errorf("decode userinfo: %w", err)
 	}
 	return &info, nil
-}
-
-// AuthServiceWithOAuth wraps AuthService to satisfy the narrow interface above.
-// This avoids import cycles between handler and service packages.
-type AuthServiceWithOAuth struct {
-	inner interface {
-		UpsertOAuthUser(ctx context.Context, email, fullName string, avatarURL *string) (interface{}, error)
-	}
 }

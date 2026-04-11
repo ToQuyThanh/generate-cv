@@ -89,8 +89,8 @@ func TestTemplateService_List_FilterFree(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, 2, resp.Total)
-	for _, t2 := range resp.Data {
-		assert.False(t2.IsPremium)
+	for _, tmpl := range resp.Data {
+		assert.False(t, tmpl.IsPremium) // ← fix: thêm t làm argument đầu tiên
 	}
 }
 
