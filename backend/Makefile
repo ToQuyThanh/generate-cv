@@ -1,23 +1,6 @@
 .PHONY: run test test-unit test-integration lint sqlc \
         migrate-up migrate-down migrate-status \
-        docker-up docker-down docker-reset \
-        install-tools
-
-## ── Tool paths (prefer local bin, fallback to PATH) ─────────────────────────
-
-GOBIN  := $(shell go env GOPATH)/bin
-GOOSE  := $(GOBIN)/goose
-SQLC   := $(GOBIN)/sqlc
-
-## ── Install dev tools ────────────────────────────────────────────────────────
-
-install-tools:
-	@echo "→ Installing goose..."
-	go install github.com/pressly/goose/v3/cmd/goose@latest
-	@echo "→ Installing sqlc..."
-	go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
-	@echo "✓ Tools installed to $(GOBIN)"
-	@echo "  Add to PATH if needed: export PATH=\$$PATH:$(GOBIN)"
+        docker-up docker-down docker-reset
 
 ## ── Dev ──────────────────────────────────────────────────────────────────────
 
@@ -42,34 +25,36 @@ lint:
 
 ## ── Code generation ──────────────────────────────────────────────────────────
 
-sqlc: $(SQLC)
-	$(SQLC) generate
+sqlc:
+	sqlc generate
 
-## ── Database migrations ──────────────────────────────────────────────────────
+## ── Database migrations (chạy trong Docker, không cần cài goose trên host) ───
 
-GOOSE_DSN ?= "host=localhost port=5432 user=postgres password=postgres dbname=generate_cv sslmode=disable"
-GOOSE_DIR  = db/migrations
+migrate-up:
+	docker compose run --rm migrate
 
-$(GOOSE):
-	@echo "→ goose not found, installing..."
-	go install github.com/pressly/goose/v3/cmd/goose@latest
+migrate-down:
+	docker compose run --rm migrate -dir /migrations down
 
-migrate-up: $(GOOSE)
-	$(GOOSE) -dir $(GOOSE_DIR) postgres $(GOOSE_DSN) up
-
-migrate-down: $(GOOSE)
-	$(GOOSE) -dir $(GOOSE_DIR) postgres $(GOOSE_DSN) down
-
-migrate-status: $(GOOSE)
-	$(GOOSE) -dir $(GOOSE_DIR) postgres $(GOOSE_DSN) status
+migrate-status:
+	docker compose run --rm migrate -dir /migrations status
 
 ## ── Docker ───────────────────────────────────────────────────────────────────
 
+# Khởi động postgres + redis (không chạy migrate tự động)
 docker-up:
-	docker compose up -d
+	docker compose up -d postgres redis
+
+# Khởi động + migrate luôn một lệnh
+docker-up-migrate:
+	docker compose up -d postgres redis
+	docker compose run --rm migrate
 
 docker-down:
 	docker compose down
 
+# Xoá toàn bộ volume, khởi động lại sạch
 docker-reset:
-	docker compose down -v && docker compose up -d
+	docker compose down -v
+	docker compose up -d postgres redis
+	docker compose run --rm migrate

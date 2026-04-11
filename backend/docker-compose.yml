@@ -6,15 +6,15 @@ services:
     container_name: generate_cv_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: generate_cv
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-generate_cv}
     ports:
-      - "5432:5432"
+      - "${DB_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -32,6 +32,22 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  migrate:
+    image: ghcr.io/pressly/goose:latest
+    container_name: generate_cv_migrate
+    # Tự thoát sau khi chạy xong — không restart
+    restart: "no"
+    environment:
+      GOOSE_DRIVER: postgres
+      GOOSE_DBSTRING: "host=postgres port=5432 user=${DB_USER:-postgres} password=${DB_PASSWORD:-postgres} dbname=${DB_NAME:-generate_cv} sslmode=disable"
+    volumes:
+      # Mount thư mục migrations vào container
+      - ./db/migrations:/migrations
+    command: ["-dir", "/migrations", "up"]
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
   postgres_data:
