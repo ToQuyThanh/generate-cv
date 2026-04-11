@@ -1,0 +1,1466 @@
+openapi: "3.1.0"
+
+info:
+  title: generate-cv API
+  description: |
+    API cho ứng dụng web làm CV dành cho thị trường Việt Nam.
+    Hỗ trợ tạo CV, export PDF, AI gợi ý nội dung theo JD, và thanh toán VNPay / MoMo.
+  version: "1.0.0"
+  contact:
+    name: generate-cv Team
+
+servers:
+  - url: https://api.generate-cv.vn/api/v1
+    description: Production
+  - url: http://localhost:8080/api/v1
+    description: Local development
+
+# ─────────────────────────────────────────
+# Security Schemes
+# ─────────────────────────────────────────
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  # ─────────────────────────────────────────
+  # Reusable Schemas
+  # ─────────────────────────────────────────
+  schemas:
+
+    # ── Errors ────────────────────────────
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: UNAUTHORIZED
+        message:
+          type: string
+          example: Token không hợp lệ hoặc đã hết hạn
+
+    ValidationErrorResponse:
+      type: object
+      required: [code, message, errors]
+      properties:
+        code:
+          type: string
+          example: VALIDATION_ERROR
+        message:
+          type: string
+          example: Dữ liệu không hợp lệ
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+                example: email
+              message:
+                type: string
+                example: Email không đúng định dạng
+
+    # ── Auth ──────────────────────────────
+    RegisterRequest:
+      type: object
+      required: [email, password, full_name]
+      properties:
+        email:
+          type: string
+          format: email
+          example: nguyen@example.com
+        password:
+          type: string
+          minLength: 8
+          example: "Matkhau123!"
+        full_name:
+          type: string
+          example: Nguyễn Văn A
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: nguyen@example.com
+        password:
+          type: string
+          example: "Matkhau123!"
+
+    AuthTokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        refresh_token:
+          type: string
+          example: dGhpcyBpcyBhIHJlZnJlc2ggdG9rZW4...
+        expires_in:
+          type: integer
+          description: Thời gian hết hạn access_token (giây)
+          example: 900
+
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+          example: dGhpcyBpcyBhIHJlZnJlc2ggdG9rZW4...
+
+    ForgotPasswordRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+          example: nguyen@example.com
+
+    ResetPasswordRequest:
+      type: object
+      required: [token, new_password]
+      properties:
+        token:
+          type: string
+          example: abc123resettoken
+        new_password:
+          type: string
+          minLength: 8
+          example: "MatkhauMoi456!"
+
+    # ── User ──────────────────────────────
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440000
+        email:
+          type: string
+          format: email
+          example: nguyen@example.com
+        full_name:
+          type: string
+          example: Nguyễn Văn A
+        avatar_url:
+          type: string
+          nullable: true
+          example: https://storage.googleapis.com/generate-cv/avatars/abc.jpg
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-04-01T07:00:00Z"
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        full_name:
+          type: string
+          example: Nguyễn Văn B
+        avatar_url:
+          type: string
+          nullable: true
+          example: https://storage.googleapis.com/generate-cv/avatars/new.jpg
+
+    Subscription:
+      type: object
+      properties:
+        plan:
+          type: string
+          enum: [free, weekly, monthly]
+          example: monthly
+        status:
+          type: string
+          enum: [active, expired, cancelled]
+          example: active
+        started_at:
+          type: string
+          format: date-time
+          example: "2026-04-01T00:00:00Z"
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-05-01T00:00:00Z"
+
+    # ── CV ────────────────────────────────
+    CVSection:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [personal, summary, experience, education, skills, projects, certifications, custom]
+          example: experience
+        title:
+          type: string
+          example: Kinh nghiệm làm việc
+        order:
+          type: integer
+          example: 2
+        data:
+          type: object
+          description: Nội dung section, cấu trúc phụ thuộc vào type
+          example:
+            items:
+              - company: "Công ty ABC"
+                position: "Backend Developer"
+                start_date: "2024-01"
+                end_date: null
+                is_current: true
+                description: "Phát triển API với Go, tối ưu hiệu năng PostgreSQL"
+
+    CV:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 661e8400-e29b-41d4-a716-446655440001
+        user_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+          example: CV Backend Developer 2026
+        template_id:
+          type: string
+          example: template_modern_01
+        color_theme:
+          type: string
+          example: "#1a56db"
+        sections:
+          type: array
+          items:
+            $ref: "#/components/schemas/CVSection"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CVListItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+          example: CV Backend Developer 2026
+        template_id:
+          type: string
+          example: template_modern_01
+        thumbnail_url:
+          type: string
+          nullable: true
+          example: https://storage.googleapis.com/generate-cv/thumbnails/abc.png
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateCVRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          example: CV của tôi
+        template_id:
+          type: string
+          example: template_modern_01
+
+    UpdateCVRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          example: CV Backend Developer 2026
+        template_id:
+          type: string
+          example: template_clean_02
+        color_theme:
+          type: string
+          example: "#1a56db"
+        sections:
+          type: array
+          items:
+            $ref: "#/components/schemas/CVSection"
+
+    ExportJobResponse:
+      type: object
+      properties:
+        job_id:
+          type: string
+          format: uuid
+          example: 772e8400-e29b-41d4-a716-446655440002
+        status:
+          type: string
+          enum: [pending, processing, done, failed]
+          example: pending
+        message:
+          type: string
+          example: Job đang được xử lý, vui lòng kiểm tra lại sau vài giây
+
+    ExportJobStatusResponse:
+      type: object
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, processing, done, failed]
+          example: done
+        download_url:
+          type: string
+          nullable: true
+          description: URL download PDF (có giá trị khi status = done)
+          example: https://storage.googleapis.com/generate-cv/exports/cv_abc.pdf
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Thời điểm URL download hết hạn (15 phút)
+          example: "2026-04-11T08:15:00Z"
+        error:
+          type: string
+          nullable: true
+          description: Thông báo lỗi khi status = failed
+
+    # ── Template ──────────────────────────
+    Template:
+      type: object
+      properties:
+        id:
+          type: string
+          example: template_modern_01
+        name:
+          type: string
+          example: Modern
+        thumbnail_url:
+          type: string
+          example: https://storage.googleapis.com/generate-cv/templates/modern_thumb.png
+        preview_url:
+          type: string
+          example: https://storage.googleapis.com/generate-cv/templates/modern_full.png
+        is_premium:
+          type: boolean
+          example: false
+        tags:
+          type: array
+          items:
+            type: string
+          example: ["công nghệ", "tối giản"]
+
+    # ── AI ────────────────────────────────
+    AISuggestSummaryRequest:
+      type: object
+      required: [full_name, current_position, years_of_experience, skills]
+      properties:
+        full_name:
+          type: string
+          example: Nguyễn Văn A
+        current_position:
+          type: string
+          example: Backend Developer
+        years_of_experience:
+          type: integer
+          example: 3
+        skills:
+          type: array
+          items:
+            type: string
+          example: ["Go", "PostgreSQL", "Docker"]
+        target_position:
+          type: string
+          nullable: true
+          example: Senior Backend Developer
+
+    AISuggestExperienceRequest:
+      type: object
+      required: [company, position, responsibilities_raw]
+      properties:
+        company:
+          type: string
+          example: Công ty ABC
+        position:
+          type: string
+          example: Backend Developer
+        responsibilities_raw:
+          type: string
+          description: Mô tả thô của user, AI sẽ viết lại chuyên nghiệp hơn
+          example: "làm api, fix bug, làm việc với team frontend"
+        target_jd:
+          type: string
+          nullable: true
+          description: Job Description mục tiêu để AI căn chỉnh từ khóa
+
+    AIAnalyzeJDRequest:
+      type: object
+      required: [jd_text]
+      properties:
+        jd_text:
+          type: string
+          description: Nội dung Job Description cần phân tích
+          example: "Chúng tôi cần tuyển Senior Go Developer có kinh nghiệm microservices..."
+        cv_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: ID CV hiện tại để AI đối chiếu và gợi ý cụ thể hơn
+
+    AIAnalyzeJDResponse:
+      type: object
+      properties:
+        keywords:
+          type: array
+          description: Từ khóa quan trọng trong JD
+          items:
+            type: string
+          example: ["Go", "microservices", "Kubernetes", "PostgreSQL"]
+        missing_keywords:
+          type: array
+          description: Từ khóa trong JD nhưng chưa có trong CV (nếu truyền cv_id)
+          items:
+            type: string
+          example: ["Kubernetes", "gRPC"]
+        suggestions:
+          type: array
+          description: Gợi ý cụ thể để chỉnh CV cho phù hợp với JD
+          items:
+            type: string
+          example:
+            - "Thêm kinh nghiệm với Kubernetes vào mục Kỹ năng"
+            - "Nhấn mạnh kinh nghiệm thiết kế microservices ở mục Kinh nghiệm"
+        match_score:
+          type: integer
+          description: Độ phù hợp CV với JD (0–100)
+          example: 72
+
+    AIRewriteSectionRequest:
+      type: object
+      required: [section_type, content]
+      properties:
+        section_type:
+          type: string
+          enum: [summary, experience, skills, projects]
+          example: experience
+        content:
+          type: string
+          description: Nội dung gốc cần viết lại
+          example: "Tôi đã làm việc tại công ty A và phụ trách các công việc backend"
+        tone:
+          type: string
+          enum: [professional, concise, impactful]
+          default: professional
+          example: impactful
+
+    AITextResponse:
+      type: object
+      properties:
+        result:
+          type: string
+          description: Nội dung do AI tạo ra
+          example: "Backend Developer với 3 năm kinh nghiệm xây dựng hệ thống phân tán hiệu năng cao..."
+
+    # ── Payment ───────────────────────────
+    CreatePaymentRequest:
+      type: object
+      required: [plan, method]
+      properties:
+        plan:
+          type: string
+          enum: [weekly, monthly]
+          example: monthly
+        method:
+          type: string
+          enum: [vnpay, momo]
+          example: momo
+        redirect_url:
+          type: string
+          description: URL frontend redirect sau khi thanh toán xong
+          example: https://generate-cv.vn/payment/result
+
+    CreatePaymentResponse:
+      type: object
+      properties:
+        payment_id:
+          type: string
+          format: uuid
+          example: 883e8400-e29b-41d4-a716-446655440003
+        payment_url:
+          type: string
+          description: URL redirect đến cổng thanh toán VNPay hoặc MoMo
+          example: https://sandbox.vnpayment.vn/paymentv2/vpcpay.html?vnp_Amount=15000000...
+        expires_at:
+          type: string
+          format: date-time
+          description: Thời điểm link thanh toán hết hạn (15 phút)
+          example: "2026-04-11T08:15:00Z"
+
+    PaymentTransaction:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        plan:
+          type: string
+          enum: [weekly, monthly]
+        method:
+          type: string
+          enum: [vnpay, momo]
+        amount_vnd:
+          type: integer
+          example: 150000
+        status:
+          type: string
+          enum: [pending, success, failed, refunded]
+          example: success
+        created_at:
+          type: string
+          format: date-time
+        paid_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    VNPayCallbackQuery:
+      type: object
+      description: Query params VNPay gửi về sau khi thanh toán
+      properties:
+        vnp_TxnRef:
+          type: string
+          example: "883e8400"
+        vnp_ResponseCode:
+          type: string
+          example: "00"
+        vnp_Amount:
+          type: string
+          example: "15000000"
+        vnp_SecureHash:
+          type: string
+
+    WebhookVNPayRequest:
+      type: object
+      description: IPN server-to-server từ VNPay
+      properties:
+        vnp_TxnRef:
+          type: string
+        vnp_ResponseCode:
+          type: string
+        vnp_Amount:
+          type: string
+        vnp_TransactionNo:
+          type: string
+        vnp_SecureHash:
+          type: string
+
+    WebhookMoMoRequest:
+      type: object
+      description: IPN server-to-server từ MoMo
+      properties:
+        orderId:
+          type: string
+        requestId:
+          type: string
+        amount:
+          type: integer
+        resultCode:
+          type: integer
+          description: 0 = thành công
+        signature:
+          type: string
+
+    WebhookResponse:
+      type: object
+      properties:
+        RspCode:
+          type: string
+          example: "00"
+        Message:
+          type: string
+          example: Confirm Success
+
+    # ── Common ────────────────────────────
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Thao tác thành công
+
+    PaginationMeta:
+      type: object
+      properties:
+        total:
+          type: integer
+          example: 42
+        page:
+          type: integer
+          example: 1
+        per_page:
+          type: integer
+          example: 20
+
+  # ─────────────────────────────────────────
+  # Reusable Responses
+  # ─────────────────────────────────────────
+  responses:
+    Unauthorized:
+      description: Token không hợp lệ hoặc chưa đăng nhập
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            code: UNAUTHORIZED
+            message: Token không hợp lệ hoặc đã hết hạn
+
+    Forbidden:
+      description: Không có quyền — thường do chưa có gói subscription
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            code: SUBSCRIPTION_REQUIRED
+            message: Tính năng này yêu cầu gói Tuần hoặc Tháng
+
+    NotFound:
+      description: Không tìm thấy tài nguyên
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            code: NOT_FOUND
+            message: Không tìm thấy CV
+
+    ValidationError:
+      description: Dữ liệu đầu vào không hợp lệ
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ValidationErrorResponse"
+
+    InternalError:
+      description: Lỗi server
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            code: INTERNAL_ERROR
+            message: Đã xảy ra lỗi, vui lòng thử lại
+
+# ─────────────────────────────────────────
+# Tags
+# ─────────────────────────────────────────
+tags:
+  - name: Auth
+    description: Đăng ký, đăng nhập, OAuth, reset mật khẩu
+  - name: User
+    description: Thông tin tài khoản và subscription
+  - name: CV
+    description: Tạo, chỉnh sửa, xóa và export CV
+  - name: Template
+    description: Danh sách template CV
+  - name: AI
+    description: Gợi ý nội dung và phân tích JD bằng AI (yêu cầu gói trả phí)
+  - name: Payment
+    description: Thanh toán VNPay / MoMo, lịch sử giao dịch
+  - name: Webhook
+    description: IPN server-to-server từ cổng thanh toán
+
+# ─────────────────────────────────────────
+# Paths
+# ─────────────────────────────────────────
+paths:
+
+  # ══════════════════════════════════════
+  # AUTH
+  # ══════════════════════════════════════
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Đăng ký tài khoản mới
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: Đăng ký thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthTokenResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "409":
+          description: Email đã tồn tại
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                code: EMAIL_EXISTS
+                message: Email này đã được đăng ký
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Đăng nhập bằng email + password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Đăng nhập thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthTokenResponse"
+        "401":
+          description: Sai email hoặc mật khẩu
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                code: INVALID_CREDENTIALS
+                message: Email hoặc mật khẩu không đúng
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Đăng xuất — hủy refresh token
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+      responses:
+        "200":
+          description: Đăng xuất thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Lấy access token mới từ refresh token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+      responses:
+        "200":
+          description: Token mới
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthTokenResponse"
+        "401":
+          description: Refresh token không hợp lệ hoặc đã hết hạn
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/google:
+    get:
+      tags: [Auth]
+      summary: Bắt đầu luồng Google OAuth2
+      description: Redirect trình duyệt đến trang đăng nhập Google
+      responses:
+        "302":
+          description: Redirect đến Google OAuth2 consent screen
+
+  /auth/google/callback:
+    get:
+      tags: [Auth]
+      summary: Callback sau khi user xác thực với Google
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: state
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Xác thực thành công, trả về tokens
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthTokenResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+
+  /auth/forgot-password:
+    post:
+      tags: [Auth]
+      summary: Gửi email link reset mật khẩu
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordRequest"
+      responses:
+        "200":
+          description: Email đã được gửi (luôn trả 200 dù email không tồn tại, để tránh enumeration)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /auth/reset-password:
+    post:
+      tags: [Auth]
+      summary: Đặt lại mật khẩu bằng token từ email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordRequest"
+      responses:
+        "200":
+          description: Mật khẩu đã được đặt lại
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          description: Token không hợp lệ hoặc đã hết hạn
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                code: INVALID_RESET_TOKEN
+                message: Link reset mật khẩu không hợp lệ hoặc đã hết hạn
+
+  # ══════════════════════════════════════
+  # USER
+  # ══════════════════════════════════════
+  /users/me:
+    get:
+      tags: [User]
+      summary: Lấy thông tin tài khoản hiện tại
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Thông tin user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    patch:
+      tags: [User]
+      summary: Cập nhật thông tin tài khoản
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserRequest"
+      responses:
+        "200":
+          description: Cập nhật thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    delete:
+      tags: [User]
+      summary: Xóa tài khoản vĩnh viễn
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Tài khoản đã bị xóa
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /users/me/subscription:
+    get:
+      tags: [User]
+      summary: Lấy thông tin gói subscription hiện tại
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Thông tin subscription
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Subscription"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ══════════════════════════════════════
+  # CV
+  # ══════════════════════════════════════
+  /cvs:
+    get:
+      tags: [CV]
+      summary: Lấy danh sách CV của user
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Danh sách CV
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/CVListItem"
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    post:
+      tags: [CV]
+      summary: Tạo CV mới
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCVRequest"
+      responses:
+        "201":
+          description: CV vừa tạo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CV"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /cvs/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      tags: [CV]
+      summary: Lấy nội dung chi tiết 1 CV
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Chi tiết CV
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CV"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    patch:
+      tags: [CV]
+      summary: Lưu nội dung CV (auto-save)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCVRequest"
+      responses:
+        "200":
+          description: CV đã được lưu
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CV"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      tags: [CV]
+      summary: Xóa CV
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: CV đã bị xóa
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /cvs/{id}/duplicate:
+    post:
+      tags: [CV]
+      summary: Nhân bản CV
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "201":
+          description: CV bản sao vừa tạo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CVListItem"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /cvs/{id}/export:
+    post:
+      tags: [CV]
+      summary: Tạo job export PDF
+      description: |
+        Tạo background job render CV thành PDF.
+        - User **Free**: trả về PDF có watermark
+        - User **Gói Tuần / Tháng**: PDF sạch, không watermark
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "202":
+          description: Job đã được tạo, đang xử lý
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExportJobResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /cvs/{id}/export/{jobId}:
+    get:
+      tags: [CV]
+      summary: Kiểm tra trạng thái export và lấy URL download
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Trạng thái job export
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExportJobStatusResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ══════════════════════════════════════
+  # TEMPLATE
+  # ══════════════════════════════════════
+  /templates:
+    get:
+      tags: [Template]
+      summary: Lấy danh sách tất cả template
+      parameters:
+        - name: is_premium
+          in: query
+          schema:
+            type: boolean
+          description: Lọc theo Free (false) hoặc Premium (true)
+        - name: tag
+          in: query
+          schema:
+            type: string
+          description: Lọc theo tag ngành nghề
+          example: "công nghệ"
+      responses:
+        "200":
+          description: Danh sách template
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Template"
+
+  /templates/{id}:
+    get:
+      tags: [Template]
+      summary: Lấy chi tiết 1 template
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Chi tiết template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Template"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ══════════════════════════════════════
+  # AI
+  # ══════════════════════════════════════
+  /ai/suggest-summary:
+    post:
+      tags: [AI]
+      summary: Gợi ý mục "Giới thiệu bản thân"
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AISuggestSummaryRequest"
+      responses:
+        "200":
+          description: Nội dung AI gợi ý
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AITextResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          description: Vượt giới hạn rate limit (20 req/phút)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                code: RATE_LIMIT_EXCEEDED
+                message: Bạn đã gửi quá nhiều yêu cầu, vui lòng thử lại sau 60 giây
+
+  /ai/suggest-experience:
+    post:
+      tags: [AI]
+      summary: Gợi ý mô tả kinh nghiệm làm việc
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AISuggestExperienceRequest"
+      responses:
+        "200":
+          description: Nội dung AI gợi ý
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AITextResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          description: Vượt giới hạn rate limit
+
+  /ai/analyze-jd:
+    post:
+      tags: [AI]
+      summary: Phân tích Job Description, trả về từ khóa và gợi ý
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AIAnalyzeJDRequest"
+      responses:
+        "200":
+          description: Kết quả phân tích JD
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AIAnalyzeJDResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          description: Vượt giới hạn rate limit
+
+  /ai/rewrite-section:
+    post:
+      tags: [AI]
+      summary: Viết lại 1 đoạn văn trong CV chuyên nghiệp hơn
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AIRewriteSectionRequest"
+      responses:
+        "200":
+          description: Nội dung đã được viết lại
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AITextResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          description: Vượt giới hạn rate limit
+
+  # ══════════════════════════════════════
+  # PAYMENT
+  # ══════════════════════════════════════
+  /payment/create:
+    post:
+      tags: [Payment]
+      summary: Tạo link thanh toán VNPay hoặc MoMo
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePaymentRequest"
+      responses:
+        "200":
+          description: Link thanh toán được tạo thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreatePaymentResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /payment/vnpay/callback:
+    get:
+      tags: [Payment]
+      summary: Redirect callback từ VNPay sau khi thanh toán
+      description: |
+        VNPay redirect trình duyệt user về URL này sau khi thanh toán.
+        Server xác thực chữ ký, cập nhật subscription, sau đó redirect về frontend.
+      parameters:
+        - name: vnp_TxnRef
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: vnp_ResponseCode
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: vnp_Amount
+          in: query
+          schema:
+            type: string
+        - name: vnp_SecureHash
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect về frontend với kết quả thanh toán
+          headers:
+            Location:
+              schema:
+                type: string
+              example: https://generate-cv.vn/payment/result?status=success
+
+  /payment/history:
+    get:
+      tags: [Payment]
+      summary: Lấy lịch sử giao dịch
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Danh sách giao dịch
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PaymentTransaction"
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ══════════════════════════════════════
+  # WEBHOOK
+  # ══════════════════════════════════════
+  /webhook/vnpay:
+    post:
+      tags: [Webhook]
+      summary: IPN server-to-server từ VNPay
+      description: |
+        VNPay gọi endpoint này để xác nhận giao dịch.
+        Server xác thực HMAC-SHA512, cập nhật subscription, trả về RspCode 00.
+        **Không cần Bearer token** — xác thực qua HMAC signature.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebhookVNPayRequest"
+      responses:
+        "200":
+          description: Xác nhận nhận được IPN
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookResponse"
+
+  /webhook/momo:
+    post:
+      tags: [Webhook]
+      summary: IPN server-to-server từ MoMo
+      description: |
+        MoMo gọi endpoint này để xác nhận giao dịch.
+        Server xác thực HMAC-SHA256 signature, cập nhật subscription.
+        **Không cần Bearer token** — xác thực qua signature.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebhookMoMoRequest"
+      responses:
+        "200":
+          description: Xác nhận nhận được IPN
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
