@@ -1,4 +1,6 @@
-.PHONY: run test test-unit test-integration test-service test-handler test-jwt lint sqlc \
+.PHONY: run test test-unit test-integration \
+        test-service test-handler test-jwt test-middleware test-cv \
+        lint sqlc \
         migrate-up migrate-down migrate-status \
         docker-up docker-down docker-reset
 
@@ -34,6 +36,10 @@ test-jwt:
 test-middleware:
 	go test ./internal/middleware/... -v -race -count=1
 
+# Week 3 shorthand
+test-cv:
+	go test ./internal/service/... ./internal/handler/... -run TestCV -v -race -count=1
+
 ## ── Lint ─────────────────────────────────────────────────────────────────────
 
 lint:
@@ -44,7 +50,7 @@ lint:
 sqlc:
 	sqlc generate
 
-## ── Database migrations (chạy trong Docker, không cần cài goose trên host) ───
+## ── Database migrations ──────────────────────────────────────────────────────
 
 migrate-up:
 	docker compose run --rm migrate
