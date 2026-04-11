@@ -1,4 +1,4 @@
-.PHONY: run test test-unit test-integration lint sqlc \
+.PHONY: run test test-unit test-integration test-service test-handler test-jwt lint sqlc \
         migrate-up migrate-down migrate-status \
         docker-up docker-down docker-reset
 
@@ -9,14 +9,30 @@ run:
 
 ## ── Test ─────────────────────────────────────────────────────────────────────
 
+# Run all tests
 test:
 	go test ./... -v -race -count=1
 
+# Unit tests only (no DB needed)
 test-unit:
-	go test ./tests/unit/... -v -race -count=1
+	go test ./internal/service/... ./internal/handler/... ./internal/middleware/... ./pkg/jwtutil/... -v -race -count=1
 
+# Integration tests (requires Docker DB)
 test-integration:
 	INTEGRATION=true go test ./tests/integration/... -v -count=1
+
+# Granular targets
+test-service:
+	go test ./internal/service/... -v -race -count=1
+
+test-handler:
+	go test ./internal/handler/... -v -race -count=1
+
+test-jwt:
+	go test ./pkg/jwtutil/... -v -race -count=1
+
+test-middleware:
+	go test ./internal/middleware/... -v -race -count=1
 
 ## ── Lint ─────────────────────────────────────────────────────────────────────
 
@@ -41,11 +57,9 @@ migrate-status:
 
 ## ── Docker ───────────────────────────────────────────────────────────────────
 
-# Khởi động postgres + redis (không chạy migrate tự động)
 docker-up:
 	docker compose up -d postgres redis
 
-# Khởi động + migrate luôn một lệnh
 docker-up-migrate:
 	docker compose up -d postgres redis
 	docker compose run --rm migrate
@@ -53,7 +67,6 @@ docker-up-migrate:
 docker-down:
 	docker compose down
 
-# Xoá toàn bộ volume, khởi động lại sạch
 docker-reset:
 	docker compose down -v
 	docker compose up -d postgres redis
