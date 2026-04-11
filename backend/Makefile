@@ -1,5 +1,6 @@
 .PHONY: run test test-unit test-integration \
         test-service test-handler test-jwt test-middleware test-cv \
+        test-user test-template test-week4 \
         lint sqlc \
         migrate-up migrate-down migrate-status \
         docker-up docker-down docker-reset
@@ -39,6 +40,18 @@ test-middleware:
 # Week 3 shorthand
 test-cv:
 	go test ./internal/service/... ./internal/handler/... -run TestCV -v -race -count=1
+
+# Week 4 shortcuts
+test-user:
+	go test ./internal/service/... ./internal/handler/... -run TestUser -v -race -count=1
+
+test-template:
+	go test ./internal/service/... ./internal/handler/... -run TestTemplate -v -race -count=1
+
+# All week 4 tests (user + template + ratelimit)
+test-week4:
+	go test ./internal/service/... ./internal/handler/... ./internal/middleware/... \
+	    -run "TestUser|TestTemplate|TestRateLimit" -v -race -count=1
 
 ## ── Lint ─────────────────────────────────────────────────────────────────────
 
