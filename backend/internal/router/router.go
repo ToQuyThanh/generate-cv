@@ -17,6 +17,7 @@ import (
 )
 
 // New creates and returns the root Gin engine with all routes registered.
+// rdb may be nil in tests that don't exercise rate-limited routes.
 func New(cfg *config.Config, pool *pgxpool.Pool, rdb *redis.Client) *gin.Engine {
 	if cfg.App.Env == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -32,30 +33,27 @@ func New(cfg *config.Config, pool *pgxpool.Pool, rdb *redis.Client) *gin.Engine 
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
-	// ─── Wire dependencies ────────────────────────────────────────────────────
-
-	// Auth
-	userRepo := repository.NewUserRepository(pool)
-	refreshRepo := repository.NewRefreshTokenRepository(pool)
-	subRepo := repository.NewSubscriptionRepository(pool)
-	resetRepo := repository.NewPasswordResetTokenRepository(pool)
-	mailer := email.NewNoOpSender()
-	authSvc := service.NewAuthService(cfg, userRepo, refreshRepo, subRepo, resetRepo, mailer)
-	authHandler := handler.NewAuthHandler(authSvc)
-	googleHandler := handler.NewGoogleHandler(cfg)
-
-	// CV
-	cvRepo := repository.NewCVRepository(pool)
-	cvSvc := service.NewCVService(cvRepo)
-	cvHandler := handler.NewCVHandler(cvSvc)
-
-	// User
-	userSvc := service.NewUserService(userRepo, subRepo)
-	userHandler := handler.NewUserHandler(userSvc)
-
-	// Template
+	// ─── Repositories ─────────────────────────────────────────────────────────
+	userRepo     := repository.NewUserRepository(pool)
+	refreshRepo  := repository.NewRefreshTokenRepository(pool)
+	subRepo      := repository.NewSubscriptionRepository(pool)
+	resetRepo    := repository.NewPasswordResetTokenRepository(pool)
 	templateRepo := repository.NewTemplateRepository(pool)
+	cvRepo       := repository.NewCVRepository(pool)
+
+	// ─── Services ─────────────────────────────────────────────────────────────
+	mailer      := email.NewNoOpSender()
+	authSvc     := service.NewAuthService(cfg, userRepo, refreshRepo, subRepo, resetRepo, mailer)
+	cvSvc       := service.NewCVService(cvRepo)
+	// subRepo satisfies both SubscriptionRepo (auth — Create) and SubReader (user — GetByUserID)
+	userSvc     := service.NewUserService(userRepo, subRepo)
 	templateSvc := service.NewTemplateService(templateRepo)
+
+	// ─── Handlers ─────────────────────────────────────────────────────────────
+	authHandler     := handler.NewAuthHandler(authSvc)
+	googleHandler   := handler.NewGoogleHandler(cfg)
+	cvHandler       := handler.NewCVHandler(cvSvc)
+	userHandler     := handler.NewUserHandler(userSvc)
 	templateHandler := handler.NewTemplateHandler(templateSvc)
 
 	// ─── API v1 ───────────────────────────────────────────────────────────────
@@ -78,40 +76,40 @@ func New(cfg *config.Config, pool *pgxpool.Pool, rdb *redis.Client) *gin.Engine 
 			auth.GET("/google/callback",  googleHandler.Callback)
 		}
 
-		// ── Templates (public — anyone can browse templates) ──────────────────
-		templates := v1.Group("/templates")
+		// ── Templates (public) ────────────────────────────────────────────────
+		tmpl := v1.Group("/templates")
 		{
-			templates.GET("",    templateHandler.List)
-			templates.GET("/:id", templateHandler.Get)
+			tmpl.GET("",     templateHandler.List)
+			tmpl.GET("/:id", templateHandler.Get)
 		}
 
 		// ── Protected routes (require valid JWT) ──────────────────────────────
 		protected := v1.Group("")
 		protected.Use(middleware.AuthJWT(cfg.JWT.Secret))
 		{
-			// Dev helper
 			protected.GET("/me/ping", func(c *gin.Context) {
 				userID := middleware.GetUserID(c)
 				c.JSON(http.StatusOK, gin.H{"message": "authenticated", "user_id": userID})
 			})
 
-			// ── User routes ───────────────────────────────────────────────────
+			// ── User ──────────────────────────────────────────────────────────
 			users := protected.Group("/users")
-			{
-				// Global rate limit: 60 req/min on user endpoints
+			if rdb != nil {
 				users.Use(middleware.RateLimit(rdb, 60, time.Minute))
-
-				users.GET("/me",                  userHandler.GetMe)
-				users.PATCH("/me",                userHandler.UpdateMe)
-				users.DELETE("/me",               userHandler.DeleteMe)
-				users.GET("/me/subscription",     userHandler.GetSubscription)
+			}
+			{
+				users.GET("/me",              userHandler.GetMe)
+				users.PATCH("/me",            userHandler.UpdateMe)
+				users.DELETE("/me",           userHandler.DeleteMe)
+				users.GET("/me/subscription", userHandler.GetSubscription)
 			}
 
-			// ── CV routes ─────────────────────────────────────────────────────
+			// ── CV ────────────────────────────────────────────────────────────
 			cvs := protected.Group("/cvs")
-			{
+			if rdb != nil {
 				cvs.Use(middleware.RateLimit(rdb, 120, time.Minute))
-
+			}
+			{
 				cvs.GET("",                cvHandler.List)
 				cvs.POST("",               cvHandler.Create)
 				cvs.GET("/:id",            cvHandler.Get)

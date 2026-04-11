@@ -19,30 +19,33 @@ var ErrUserNotFound = errors.New("user not found")
 
 // ─── Repo interfaces (for mocking in tests) ───────────────────────────────────
 
-type UserRepo interface {
+// UserProfileRepo is the subset of UserRepository needed by UserService.
+// Distinct from UserRepo in auth.go (which only needs Create/OAuth/GetBy*/UpdatePassword).
+type UserProfileRepo interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*repository.User, error)
 	UpdateFields(ctx context.Context, id uuid.UUID, fullName, avatarURL *string) (*repository.User, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 }
 
-type SubRepo interface {
+// SubReader is the read-side of SubscriptionRepository needed by UserService.
+// Distinct from SubscriptionRepo in auth.go (which only needs Create).
+type SubReader interface {
 	GetByUserID(ctx context.Context, userID uuid.UUID) (*repository.Subscription, error)
 }
 
 // ─── UserService ──────────────────────────────────────────────────────────────
 
 type UserService struct {
-	users UserRepo
-	subs  SubRepo
+	users UserProfileRepo
+	subs  SubReader
 }
 
-func NewUserService(users UserRepo, subs SubRepo) *UserService {
+func NewUserService(users UserProfileRepo, subs SubReader) *UserService {
 	return &UserService{users: users, subs: subs}
 }
 
 // ─── GetMe ────────────────────────────────────────────────────────────────────
 
-// GetMe returns user info + subscription.
 func (s *UserService) GetMe(ctx context.Context, userID uuid.UUID) (*model.UserWithSubResponse, error) {
 	u, err := s.users.GetByID(ctx, userID)
 	if err != nil {
@@ -62,7 +65,6 @@ func (s *UserService) GetMe(ctx context.Context, userID uuid.UUID) (*model.UserW
 
 // ─── UpdateMe ─────────────────────────────────────────────────────────────────
 
-// UpdateMe applies partial update to the user profile.
 func (s *UserService) UpdateMe(ctx context.Context, userID uuid.UUID, req model.UpdateUserRequest) (*model.UserWithSubResponse, error) {
 	u, err := s.users.UpdateFields(ctx, userID, req.FullName, req.AvatarURL)
 	if err != nil {
@@ -82,9 +84,7 @@ func (s *UserService) UpdateMe(ctx context.Context, userID uuid.UUID, req model.
 
 // ─── DeleteMe ────────────────────────────────────────────────────────────────
 
-// DeleteMe hard-deletes the user. DB CASCADE removes CVs, tokens, subscription.
 func (s *UserService) DeleteMe(ctx context.Context, userID uuid.UUID) error {
-	// Verify the user exists first
 	_, err := s.users.GetByID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -101,20 +101,14 @@ func (s *UserService) DeleteMe(ctx context.Context, userID uuid.UUID) error {
 
 // ─── GetSubscription ─────────────────────────────────────────────────────────
 
-// GetSubscription returns only the subscription detail for the current user.
 func (s *UserService) GetSubscription(ctx context.Context, userID uuid.UUID) (*model.SubscriptionResponse, error) {
 	sub, err := s.subs.GetByUserID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			// Return a default free subscription if none exists yet
-			return &model.SubscriptionResponse{
-				Plan:   "free",
-				Status: "active",
-			}, nil
+			return &model.SubscriptionResponse{Plan: "free", Status: "active"}, nil
 		}
 		return nil, fmt.Errorf("get subscription: %w", err)
 	}
-
 	return toSubResponse(sub), nil
 }
 

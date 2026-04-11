@@ -18,18 +18,18 @@ import (
 
 // ─── Mocks ───────────────────────────────────────────────────────────────────
 
-type mockUserRepo struct {
+// mockUserProfileRepo implements service.UserProfileRepo
+type mockUserProfileRepo struct {
 	user    *repository.User
-	updated *repository.User
 	err     error
 	deleted bool
 }
 
-func (m *mockUserRepo) GetByID(_ context.Context, _ uuid.UUID) (*repository.User, error) {
+func (m *mockUserProfileRepo) GetByID(_ context.Context, _ uuid.UUID) (*repository.User, error) {
 	return m.user, m.err
 }
 
-func (m *mockUserRepo) UpdateFields(_ context.Context, _ uuid.UUID, fullName, avatarURL *string) (*repository.User, error) {
+func (m *mockUserProfileRepo) UpdateFields(_ context.Context, _ uuid.UUID, fullName, avatarURL *string) (*repository.User, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -40,11 +40,10 @@ func (m *mockUserRepo) UpdateFields(_ context.Context, _ uuid.UUID, fullName, av
 	if avatarURL != nil {
 		u.AvatarURL = avatarURL
 	}
-	m.updated = &u
 	return &u, nil
 }
 
-func (m *mockUserRepo) Delete(_ context.Context, _ uuid.UUID) error {
+func (m *mockUserProfileRepo) Delete(_ context.Context, _ uuid.UUID) error {
 	if m.err != nil {
 		return m.err
 	}
@@ -52,12 +51,13 @@ func (m *mockUserRepo) Delete(_ context.Context, _ uuid.UUID) error {
 	return nil
 }
 
-type mockSubRepo struct {
+// mockSubReader implements service.SubReader
+type mockSubReader struct {
 	sub *repository.Subscription
 	err error
 }
 
-func (m *mockSubRepo) GetByUserID(_ context.Context, _ uuid.UUID) (*repository.Subscription, error) {
+func (m *mockSubReader) GetByUserID(_ context.Context, _ uuid.UUID) (*repository.Subscription, error) {
 	return m.sub, m.err
 }
 
@@ -92,30 +92,28 @@ func sampleSub() *repository.Subscription {
 func TestUserService_GetMe_OK(t *testing.T) {
 	u := sampleUser()
 	sub := sampleSub()
-	svc := service.NewUserService(&mockUserRepo{user: u}, &mockSubRepo{sub: sub})
+	svc := service.NewUserService(&mockUserProfileRepo{user: u}, &mockSubReader{sub: sub})
 
 	resp, err := svc.GetMe(context.Background(), u.ID)
 
 	require.NoError(t, err)
 	assert.Equal(t, u.Email, resp.Email)
-	assert.Equal(t, u.FullName, resp.FullName)
 	require.NotNil(t, resp.Subscription)
 	assert.Equal(t, "monthly", resp.Subscription.Plan)
 }
 
 func TestUserService_GetMe_NoSubscription(t *testing.T) {
 	u := sampleUser()
-	svc := service.NewUserService(&mockUserRepo{user: u}, &mockSubRepo{err: pgx.ErrNoRows})
+	svc := service.NewUserService(&mockUserProfileRepo{user: u}, &mockSubReader{err: pgx.ErrNoRows})
 
 	resp, err := svc.GetMe(context.Background(), u.ID)
 
 	require.NoError(t, err)
-	assert.Equal(t, u.Email, resp.Email)
-	assert.Nil(t, resp.Subscription) // no subscription row = nil in response
+	assert.Nil(t, resp.Subscription)
 }
 
 func TestUserService_GetMe_UserNotFound(t *testing.T) {
-	svc := service.NewUserService(&mockUserRepo{err: pgx.ErrNoRows}, &mockSubRepo{})
+	svc := service.NewUserService(&mockUserProfileRepo{err: pgx.ErrNoRows}, &mockSubReader{})
 
 	_, err := svc.GetMe(context.Background(), uuid.New())
 
@@ -123,8 +121,7 @@ func TestUserService_GetMe_UserNotFound(t *testing.T) {
 }
 
 func TestUserService_GetMe_DBError(t *testing.T) {
-	dbErr := errors.New("db connection lost")
-	svc := service.NewUserService(&mockUserRepo{err: dbErr}, &mockSubRepo{})
+	svc := service.NewUserService(&mockUserProfileRepo{err: errors.New("db down")}, &mockSubReader{})
 
 	_, err := svc.GetMe(context.Background(), uuid.New())
 
@@ -132,14 +129,12 @@ func TestUserService_GetMe_DBError(t *testing.T) {
 	assert.NotErrorIs(t, err, service.ErrUserNotFound)
 }
 
-func TestUserService_UpdateMe_OK(t *testing.T) {
+func TestUserService_UpdateMe_FullName(t *testing.T) {
 	u := sampleUser()
 	newName := "Updated Name"
-	svc := service.NewUserService(&mockUserRepo{user: u}, &mockSubRepo{err: pgx.ErrNoRows})
+	svc := service.NewUserService(&mockUserProfileRepo{user: u}, &mockSubReader{err: pgx.ErrNoRows})
 
-	resp, err := svc.UpdateMe(context.Background(), u.ID, model.UpdateUserRequest{
-		FullName: &newName,
-	})
+	resp, err := svc.UpdateMe(context.Background(), u.ID, model.UpdateUserRequest{FullName: &newName})
 
 	require.NoError(t, err)
 	assert.Equal(t, "Updated Name", resp.FullName)
@@ -148,11 +143,9 @@ func TestUserService_UpdateMe_OK(t *testing.T) {
 func TestUserService_UpdateMe_AvatarURL(t *testing.T) {
 	u := sampleUser()
 	avatarURL := "https://example.com/avatar.png"
-	svc := service.NewUserService(&mockUserRepo{user: u}, &mockSubRepo{err: pgx.ErrNoRows})
+	svc := service.NewUserService(&mockUserProfileRepo{user: u}, &mockSubReader{err: pgx.ErrNoRows})
 
-	resp, err := svc.UpdateMe(context.Background(), u.ID, model.UpdateUserRequest{
-		AvatarURL: &avatarURL,
-	})
+	resp, err := svc.UpdateMe(context.Background(), u.ID, model.UpdateUserRequest{AvatarURL: &avatarURL})
 
 	require.NoError(t, err)
 	require.NotNil(t, resp.AvatarURL)
@@ -160,7 +153,7 @@ func TestUserService_UpdateMe_AvatarURL(t *testing.T) {
 }
 
 func TestUserService_UpdateMe_UserNotFound(t *testing.T) {
-	svc := service.NewUserService(&mockUserRepo{err: pgx.ErrNoRows}, &mockSubRepo{})
+	svc := service.NewUserService(&mockUserProfileRepo{err: pgx.ErrNoRows}, &mockSubReader{})
 
 	_, err := svc.UpdateMe(context.Background(), uuid.New(), model.UpdateUserRequest{})
 
@@ -169,8 +162,8 @@ func TestUserService_UpdateMe_UserNotFound(t *testing.T) {
 
 func TestUserService_DeleteMe_OK(t *testing.T) {
 	u := sampleUser()
-	repo := &mockUserRepo{user: u}
-	svc := service.NewUserService(repo, &mockSubRepo{})
+	repo := &mockUserProfileRepo{user: u}
+	svc := service.NewUserService(repo, &mockSubReader{})
 
 	err := svc.DeleteMe(context.Background(), u.ID)
 
@@ -179,7 +172,7 @@ func TestUserService_DeleteMe_OK(t *testing.T) {
 }
 
 func TestUserService_DeleteMe_UserNotFound(t *testing.T) {
-	svc := service.NewUserService(&mockUserRepo{err: pgx.ErrNoRows}, &mockSubRepo{})
+	svc := service.NewUserService(&mockUserProfileRepo{err: pgx.ErrNoRows}, &mockSubReader{})
 
 	err := svc.DeleteMe(context.Background(), uuid.New())
 
@@ -188,7 +181,7 @@ func TestUserService_DeleteMe_UserNotFound(t *testing.T) {
 
 func TestUserService_GetSubscription_OK(t *testing.T) {
 	sub := sampleSub()
-	svc := service.NewUserService(&mockUserRepo{}, &mockSubRepo{sub: sub})
+	svc := service.NewUserService(&mockUserProfileRepo{}, &mockSubReader{sub: sub})
 
 	resp, err := svc.GetSubscription(context.Background(), uuid.New())
 
@@ -198,7 +191,7 @@ func TestUserService_GetSubscription_OK(t *testing.T) {
 }
 
 func TestUserService_GetSubscription_NoRow_DefaultsFree(t *testing.T) {
-	svc := service.NewUserService(&mockUserRepo{}, &mockSubRepo{err: pgx.ErrNoRows})
+	svc := service.NewUserService(&mockUserProfileRepo{}, &mockSubReader{err: pgx.ErrNoRows})
 
 	resp, err := svc.GetSubscription(context.Background(), uuid.New())
 

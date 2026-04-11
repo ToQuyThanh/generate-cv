@@ -13,11 +13,13 @@ import (
 func testConfig() *config.Config {
 	return &config.Config{
 		App: config.AppConfig{Env: "test", Port: "8080"},
+		JWT: config.JWTConfig{Secret: "test-secret-at-least-32-chars-long!!"},
 	}
 }
 
 func TestHealthEndpoint(t *testing.T) {
-	r := router.New(testConfig())
+	// nil pool + nil rdb — safe for routes that don't touch DB or Redis
+	r := router.New(testConfig(), nil, nil)
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/health", nil)
@@ -37,7 +39,7 @@ func TestHealthEndpoint(t *testing.T) {
 }
 
 func TestPingEndpoint(t *testing.T) {
-	r := router.New(testConfig())
+	r := router.New(testConfig(), nil, nil)
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/api/v1/ping", nil)
@@ -56,8 +58,8 @@ func TestPingEndpoint(t *testing.T) {
 	}
 }
 
-func TestUnknownRoutReturns404(t *testing.T) {
-	r := router.New(testConfig())
+func TestUnknownRouteReturns404(t *testing.T) {
+	r := router.New(testConfig(), nil, nil)
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/not-found", nil)
