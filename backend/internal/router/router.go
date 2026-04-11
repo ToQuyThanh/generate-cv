@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/yourname/generate-cv/config"
 	"github.com/yourname/generate-cv/internal/handler"
@@ -11,8 +12,6 @@ import (
 	"github.com/yourname/generate-cv/internal/repository"
 	"github.com/yourname/generate-cv/internal/service"
 	"github.com/yourname/generate-cv/pkg/email"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // New creates and returns the root Gin engine with all routes registered.
@@ -31,16 +30,21 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *gin.Engine {
 	})
 
 	// ─── Wire dependencies ────────────────────────────────────────────────────
+
+	// Auth
 	userRepo := repository.NewUserRepository(pool)
 	refreshRepo := repository.NewRefreshTokenRepository(pool)
 	subRepo := repository.NewSubscriptionRepository(pool)
 	resetRepo := repository.NewPasswordResetTokenRepository(pool)
-
-	mailer := email.NewNoOpSender() // replaced by Resend client in Phase 2
-
+	mailer := email.NewNoOpSender()
 	authSvc := service.NewAuthService(cfg, userRepo, refreshRepo, subRepo, resetRepo, mailer)
 	authHandler := handler.NewAuthHandler(authSvc)
 	googleHandler := handler.NewGoogleHandler(cfg)
+
+	// CV
+	cvRepo := repository.NewCVRepository(pool)
+	cvSvc := service.NewCVService(cvRepo)
+	cvHandler := handler.NewCVHandler(cvSvc)
 
 	// ─── API v1 ───────────────────────────────────────────────────────────────
 	v1 := r.Group("/api/v1")
@@ -58,21 +62,32 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *gin.Engine {
 			auth.POST("/logout",          authHandler.Logout)
 			auth.POST("/forgot-password", authHandler.ForgotPassword)
 			auth.POST("/reset-password",  authHandler.ResetPassword)
-
-			// Google OAuth
-			auth.GET("/google",          googleHandler.Redirect)
-			auth.GET("/google/callback", googleHandler.Callback)
+			auth.GET("/google",           googleHandler.Redirect)
+			auth.GET("/google/callback",  googleHandler.Callback)
 		}
 
 		// ── Protected routes (require valid JWT) ──────────────────────────────
 		protected := v1.Group("")
 		protected.Use(middleware.AuthJWT(cfg.JWT.Secret))
 		{
-			// CV routes, User routes, AI routes — added in subsequent weeks
+			// Dev helper
 			protected.GET("/me/ping", func(c *gin.Context) {
 				userID := middleware.GetUserID(c)
 				c.JSON(http.StatusOK, gin.H{"message": "authenticated", "user_id": userID})
 			})
+
+			// ── CV routes ─────────────────────────────────────────────────────
+			cvs := protected.Group("/cvs")
+			{
+				cvs.GET("",              cvHandler.List)
+				cvs.POST("",             cvHandler.Create)
+				cvs.GET("/:id",          cvHandler.Get)
+				cvs.PATCH("/:id",        cvHandler.Update)
+				cvs.DELETE("/:id",       cvHandler.Delete)
+				cvs.POST("/:id/duplicate", cvHandler.Duplicate)
+			}
+
+			// User, Template, AI routes — added in weeks 4+
 		}
 	}
 

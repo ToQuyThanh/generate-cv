@@ -12,6 +12,9 @@ WHERE user_id = $1
 ORDER BY updated_at DESC
 LIMIT $2 OFFSET $3;
 
+-- name: CountCVsByUser :one
+SELECT COUNT(*) FROM cvs WHERE user_id = $1;
+
 -- name: UpdateCV :one
 UPDATE cvs
 SET
