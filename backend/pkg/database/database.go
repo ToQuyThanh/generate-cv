@@ -3,16 +3,13 @@ package database
 
 import (
 	"context"
-	"embed"
 	"fmt"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pressly/goose/v3"
 	"github.com/yourname/generate-cv/config"
+	"github.com/yourname/generate-cv/db/migrations"
 )
-
-//go:embed ../../db/migrations/*.sql
-var migrationsFS embed.FS
 
 // NewPool opens a pgx connection pool and verifies connectivity.
 func NewPool(ctx context.Context, cfg config.DBConfig) (*pgxpool.Pool, error) {
@@ -31,7 +28,7 @@ func NewPool(ctx context.Context, cfg config.DBConfig) (*pgxpool.Pool, error) {
 
 // RunMigrations applies all pending goose migrations from the embedded FS.
 func RunMigrations(cfg config.DBConfig) error {
-	goose.SetBaseFS(migrationsFS)
+	goose.SetBaseFS(migrations.FS)
 
 	db, err := goose.OpenDBWithDriver("postgres", cfg.DSN())
 	if err != nil {
@@ -43,7 +40,8 @@ func RunMigrations(cfg config.DBConfig) error {
 		return fmt.Errorf("goose set dialect: %w", err)
 	}
 
-	if err := goose.Up(db, "db/migrations"); err != nil {
+	// "." because migrations.FS root IS the migrations directory.
+	if err := goose.Up(db, "."); err != nil {
 		return fmt.Errorf("goose up: %w", err)
 	}
 
