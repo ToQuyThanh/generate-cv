@@ -22,16 +22,16 @@ const PLANS: {
   {
     id: 'weekly',
     label: 'Gói Tuần',
-    price: '29.000đ',
+    price: '49.000đ',
     priceNote: '/ 7 ngày',
-    perDay: '~4.100đ/ngày',
+    perDay: '~7.000đ/ngày',
   },
   {
     id: 'monthly',
     label: 'Gói Tháng',
-    price: '79.000đ',
+    price: '149.000đ',
     priceNote: '/ 30 ngày',
-    perDay: '~2.600đ/ngày',
+    perDay: '~5.000đ/ngày',
     popular: true,
   },
 ]

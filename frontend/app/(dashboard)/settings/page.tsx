@@ -1,20 +1,23 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Loader2, Crown, LogOut } from 'lucide-react'
+import {
+  Loader2, Crown, LogOut, CheckCircle2, XCircle, Clock, ChevronRight,
+} from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { userApi, authApi } from '@/lib/api'
+import { userApi, authApi, paymentApi } from '@/lib/api'
 import { useAuthStore } from '@/store'
 import { getPlanLabel, getPlanColor, formatDate } from '@/lib/utils'
+import type { PaymentTransaction } from '@/types'
 
 // ─── Schemas ───────────────────────────────────────────────────────────────
 
@@ -23,6 +26,38 @@ const profileSchema = z.object({
 })
 
 type ProfileForm = z.infer<typeof profileSchema>
+
+// ─── Payment history helpers ────────────────────────────────────────────────
+
+const PLAN_LABEL: Record<string, string> = {
+  weekly: 'Gói Tuần',
+  monthly: 'Gói Tháng',
+}
+
+const METHOD_LABEL: Record<string, string> = {
+  vnpay: 'VNPay',
+  momo: 'MoMo',
+}
+
+function StatusIcon({ status }: { status: PaymentTransaction['status'] }) {
+  if (status === 'success') return <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+  if (status === 'failed') return <XCircle className="h-4 w-4 text-destructive shrink-0" />
+  return <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+}
+
+function statusText(status: PaymentTransaction['status']) {
+  const map: Record<PaymentTransaction['status'], string> = {
+    success: 'Thành công',
+    failed: 'Thất bại',
+    pending: 'Đang xử lý',
+    refunded: 'Hoàn tiền',
+  }
+  return map[status] ?? status
+}
+
+function formatVND(amount: number) {
+  return new Intl.NumberFormat('vi-VN').format(amount) + 'đ'
+}
 
 // ─── Page ───────────────────────────────────────────────────────────────────
 
@@ -38,8 +73,30 @@ export default function SettingsPage() {
   const [savingProfile, setSavingProfile] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
 
-  // PATCH /users/me — backend nhận { full_name?, avatar_url? }
-  // trả UserWithSubscription
+  // Payment history
+  const [txns, setTxns] = useState<PaymentTransaction[]>([])
+  const [txnLoading, setTxnLoading] = useState(true)
+  const [txnTotal, setTxnTotal] = useState(0)
+  const [txnPage, setTxnPage] = useState(1)
+  const PAGE_SIZE = 5
+
+  useEffect(() => {
+    setTxnLoading(true)
+    paymentApi
+      .history(txnPage, PAGE_SIZE)
+      .then((res) => {
+        setTxns(res.data)
+        setTxnTotal(res.meta.total)
+      })
+      .catch(() => {
+        // Không hiện lỗi cho user nếu chỉ là lỗi load lịch sử
+      })
+      .finally(() => setTxnLoading(false))
+  }, [txnPage])
+
+  const totalPages = Math.ceil(txnTotal / PAGE_SIZE)
+
+  // PATCH /users/me
   const onSaveProfile = async (data: ProfileForm) => {
     setSavingProfile(true)
     try {
@@ -54,7 +111,7 @@ export default function SettingsPage() {
     }
   }
 
-  // POST /auth/logout — body: { refresh_token }
+  // POST /auth/logout
   const handleLogout = async () => {
     setLoggingOut(true)
     try {
@@ -72,12 +129,12 @@ export default function SettingsPage() {
         <p className="text-sm text-muted-foreground mt-1">Quản lý thông tin cá nhân và bảo mật</p>
       </div>
 
-      {/* Subscription info */}
+      {/* ── Gói dịch vụ ─────────────────────────────────────────────────── */}
       <Section title="Gói dịch vụ">
         <div className="flex items-center justify-between rounded-xl border p-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <Badge className={getPlanLabel(subscription?.plan ?? 'free') ? getPlanColor(subscription?.plan ?? 'free') : ''}>
+              <Badge className={getPlanColor(subscription?.plan ?? 'free')}>
                 {getPlanLabel(subscription?.plan ?? 'free')}
               </Badge>
               {subscription?.plan !== 'free' && (
@@ -90,15 +147,106 @@ export default function SettingsPage() {
               </p>
             )}
           </div>
-          {subscription?.plan === 'free' && (
+          {subscription?.plan === 'free' ? (
             <Button size="sm" onClick={() => router.push('/pricing')}>
               Nâng cấp
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => router.push('/pricing')}
+            >
+              Gia hạn
             </Button>
           )}
         </div>
       </Section>
 
-      {/* Profile */}
+      {/* ── Lịch sử thanh toán ──────────────────────────────────────────── */}
+      <Section title="Lịch sử thanh toán">
+        {txnLoading ? (
+          <div className="flex justify-center py-6">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : txns.length === 0 ? (
+          <div className="rounded-lg bg-muted/50 p-4 text-sm text-muted-foreground text-center">
+            Chưa có giao dịch nào.{' '}
+            <button
+              onClick={() => router.push('/pricing')}
+              className="underline underline-offset-2 hover:text-foreground transition-colors"
+            >
+              Nâng cấp ngay
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {txns.map((txn) => (
+              <div
+                key={txn.id}
+                className="flex items-center gap-3 rounded-xl border px-4 py-3 text-sm"
+              >
+                <StatusIcon status={txn.status} />
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium">
+                    {PLAN_LABEL[txn.plan] ?? txn.plan}
+                    <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                      qua {METHOD_LABEL[txn.method] ?? txn.method}
+                    </span>
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {txn.paid_at ? formatDate(txn.paid_at) : formatDate(txn.created_at)}
+                    {' · '}
+                    <span className={
+                      txn.status === 'success'
+                        ? 'text-green-600'
+                        : txn.status === 'failed'
+                        ? 'text-destructive'
+                        : 'text-muted-foreground'
+                    }>
+                      {statusText(txn.status)}
+                    </span>
+                  </p>
+                </div>
+                <span className="font-semibold tabular-nums shrink-0">
+                  {formatVND(txn.amount_vnd)}
+                </span>
+              </div>
+            ))}
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between pt-2">
+                <p className="text-xs text-muted-foreground">
+                  Trang {txnPage}/{totalPages} · {txnTotal} giao dịch
+                </p>
+                <div className="flex gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    disabled={txnPage <= 1}
+                    onClick={() => setTxnPage((p) => p - 1)}
+                  >
+                    ← Trước
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2 text-xs gap-1"
+                    disabled={txnPage >= totalPages}
+                    onClick={() => setTxnPage((p) => p + 1)}
+                  >
+                    Tiếp <ChevronRight className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </Section>
+
+      {/* ── Thông tin cá nhân ───────────────────────────────────────────── */}
       <Section title="Thông tin cá nhân">
         <form onSubmit={profileForm.handleSubmit(onSaveProfile)} className="space-y-4">
           <div className="space-y-1.5">
@@ -112,7 +260,9 @@ export default function SettingsPage() {
               placeholder="Nguyễn Văn A"
             />
             {profileForm.formState.errors.full_name && (
-              <p className="text-xs text-destructive">{profileForm.formState.errors.full_name.message}</p>
+              <p className="text-xs text-destructive">
+                {profileForm.formState.errors.full_name.message}
+              </p>
             )}
           </div>
           <Button type="submit" size="sm" disabled={savingProfile} className="gap-2">
@@ -122,15 +272,18 @@ export default function SettingsPage() {
         </form>
       </Section>
 
-      {/* Note: Đổi mật khẩu sẽ được thêm khi backend implement endpoint */}
+      {/* ── Bảo mật ─────────────────────────────────────────────────────── */}
       <Section title="Bảo mật">
         <div className="rounded-lg bg-muted/50 p-4 text-sm text-muted-foreground">
           <p className="font-medium text-foreground mb-1">Đổi mật khẩu</p>
-          <p>Tính năng đổi mật khẩu sẽ sớm được cập nhật. Hiện tại bạn có thể dùng &quot;Quên mật khẩu&quot; từ trang đăng nhập.</p>
+          <p>
+            Tính năng đổi mật khẩu sẽ sớm được cập nhật. Hiện tại bạn có thể dùng &quot;Quên mật
+            khẩu&quot; từ trang đăng nhập.
+          </p>
         </div>
       </Section>
 
-      {/* Danger zone */}
+      {/* ── Tài khoản ───────────────────────────────────────────────────── */}
       <Section title="Tài khoản">
         <Button
           variant="outline"
@@ -138,7 +291,11 @@ export default function SettingsPage() {
           onClick={handleLogout}
           disabled={loggingOut}
         >
-          {loggingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+          {loggingOut ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <LogOut className="h-4 w-4" />
+          )}
           Đăng xuất
         </Button>
       </Section>
@@ -149,7 +306,9 @@ export default function SettingsPage() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="rounded-2xl border bg-card p-6 space-y-4">
-      <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">{title}</h2>
+      <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+        {title}
+      </h2>
       {children}
     </div>
   )

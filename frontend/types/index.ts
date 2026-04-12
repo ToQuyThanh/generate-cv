@@ -270,10 +270,14 @@ export interface PaymentTransaction {
   paid_at: string | null
 }
 
-export interface PaymentHistoryResponse {
-  data: PaymentTransaction[]
+// Backend trả { data, meta: { total, page, page_size } }
+export interface PaymentHistoryMeta {
   total: number
   page: number
-  per_page: number
-  total_pages: number
+  page_size: number
+}
+
+export interface PaymentHistoryResponse {
+  data: PaymentTransaction[]
+  meta: PaymentHistoryMeta
 }

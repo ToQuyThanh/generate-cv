@@ -58,7 +58,7 @@ export function PaywallModal({ open, onClose }: Props) {
 
         {/* Pricing hint */}
         <p className="text-center text-xs text-muted-foreground">
-          Chỉ từ <span className="font-semibold text-foreground">29.000đ/tuần</span>
+          Chỉ từ <span className="font-semibold text-foreground">49.000đ/tuần</span>
         </p>
 
         {/* CTA */}
