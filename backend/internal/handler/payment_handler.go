@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/yourname/generate-cv/internal/model"
 	"github.com/yourname/generate-cv/internal/service"
 	"github.com/yourname/generate-cv/pkg/payment"
 )
@@ -32,6 +34,7 @@ type createPaymentRequest struct {
 }
 
 // Create tạo URL thanh toán cho user đang đăng nhập.
+// Service signature: CreatePayment(ctx, userID uuid.UUID, req *model.CreatePaymentRequest, clientIP string)
 func (h *PaymentHandler) Create(c *gin.Context) {
 	var req createPaymentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -39,21 +42,18 @@ func (h *PaymentHandler) Create(c *gin.Context) {
 		return
 	}
 
-	// Lấy userID từ middleware AuthJWT
 	userID, ok := getUserIDFromCtx(c)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	clientIP := c.ClientIP()
-
-	resp, err := h.svc.CreatePayment(c.Request.Context(), service.CreatePaymentRequest{
-		UserID:   userID,
-		Plan:     req.Plan,
-		Method:   req.Method,
-		ClientIP: clientIP,
-	})
+	resp, err := h.svc.CreatePayment(
+		c.Request.Context(),
+		userID,
+		&model.CreatePaymentRequest{Plan: req.Plan, Method: req.Method},
+		c.ClientIP(),
+	)
 	if err != nil {
 		h.log.Error("create payment", "err", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "không thể tạo đơn thanh toán"})
@@ -64,10 +64,10 @@ func (h *PaymentHandler) Create(c *gin.Context) {
 }
 
 // ─────────────────────────────────────────────
-//  GET /payment/vnpay/callback   (VNPay redirect về sau thanh toán)
+//  GET /payment/vnpay/callback
 // ─────────────────────────────────────────────
 
-// VNPayCallback xử lý redirect từ VNPay, rồi redirect user về frontend.
+// VNPayCallback xử lý redirect từ VNPay rồi redirect user về frontend.
 func (h *PaymentHandler) VNPayCallback(c *gin.Context) {
 	params := c.Request.URL.Query()
 
@@ -82,36 +82,28 @@ func (h *PaymentHandler) VNPayCallback(c *gin.Context) {
 	if success {
 		status = "success"
 	}
-
 	c.Redirect(http.StatusFound, "/payment/result?status="+status+"&txn="+txnID)
 }
 
 // ─────────────────────────────────────────────
-//  POST /webhook/vnpay   (VNPay IPN server-to-server)
+//  POST /webhook/vnpay
 // ─────────────────────────────────────────────
 
-// VNPayWebhook nhận IPN từ VNPay, phải trả về RspCode=00 nếu xử lý được.
+// VNPayWebhook nhận IPN từ VNPay, phải trả RspCode=00 nếu xử lý được.
 func (h *PaymentHandler) VNPayWebhook(c *gin.Context) {
 	params := c.Request.URL.Query()
 
 	if err := h.svc.HandleVNPayWebhook(c.Request.Context(), params); err != nil {
 		h.log.Error("vnpay webhook", "err", err)
-		// VNPay yêu cầu JSON response với RspCode
-		c.JSON(http.StatusOK, gin.H{
-			"RspCode": "97", // sai chữ ký hoặc dữ liệu
-			"Message": "Fail checksum",
-		})
+		c.JSON(http.StatusOK, gin.H{"RspCode": "97", "Message": "Fail checksum"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"RspCode": "00",
-		"Message": "Confirm Success",
-	})
+	c.JSON(http.StatusOK, gin.H{"RspCode": "00", "Message": "Confirm Success"})
 }
 
 // ─────────────────────────────────────────────
-//  POST /webhook/momo   (MoMo IPN server-to-server)
+//  POST /webhook/momo
 // ─────────────────────────────────────────────
 
 // MoMoWebhook nhận IPN từ MoMo.
@@ -130,7 +122,6 @@ func (h *PaymentHandler) MoMoWebhook(c *gin.Context) {
 
 	if err := h.svc.HandleMoMoWebhook(c.Request.Context(), &payload); err != nil {
 		h.log.Error("momo webhook", "err", err, "order_id", payload.OrderID)
-		// MoMo chỉ cần HTTP 200 để dừng retry; không cần phân biệt lỗi
 		c.JSON(http.StatusOK, gin.H{"message": "error"})
 		return
 	}
@@ -142,7 +133,8 @@ func (h *PaymentHandler) MoMoWebhook(c *gin.Context) {
 //  GET /payment/history
 // ─────────────────────────────────────────────
 
-// History trả danh sách giao dịch của user đang đăng nhập (có pagination).
+// History trả danh sách giao dịch của user (có pagination).
+// Service method tên là GetHistory (không phải GetPaymentHistory).
 func (h *PaymentHandler) History(c *gin.Context) {
 	userID, ok := getUserIDFromCtx(c)
 	if !ok {
@@ -150,24 +142,17 @@ func (h *PaymentHandler) History(c *gin.Context) {
 		return
 	}
 
-	page := queryInt32(c, "page", 1)
-	pageSize := queryInt32(c, "page_size", 20)
+	page := queryInt(c, "page", 1)
+	pageSize := queryInt(c, "page_size", 20)
 
-	txns, total, err := h.svc.GetPaymentHistory(c.Request.Context(), userID, page, pageSize)
+	resp, err := h.svc.GetHistory(c.Request.Context(), userID, page, pageSize)
 	if err != nil {
 		h.log.Error("payment history", "err", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "không thể lấy lịch sử"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"data": txns,
-		"meta": gin.H{
-			"total":     total,
-			"page":      page,
-			"page_size": pageSize,
-		},
-	})
+	c.JSON(http.StatusOK, resp)
 }
 
 // ─────────────────────────────────────────────
@@ -184,18 +169,15 @@ func getUserIDFromCtx(c *gin.Context) (uuid.UUID, bool) {
 	return id, ok
 }
 
-func queryInt32(c *gin.Context, key string, defaultVal int32) int32 {
-    // Lấy string từ query
-    vStr := c.DefaultQuery(key, "")
-    if vStr == "" {
-        return defaultVal
-    }
-
-    // Chuyển đổi sang int32
-    var v int32
-    _, err := fmt.Sscanf(vStr, "%d", &v)
-    if err != nil {
-        return defaultVal
-    }
-    return v
+// queryInt đọc int từ query string; dùng strconv để tránh import fmt.
+func queryInt(c *gin.Context, key string, defaultVal int) int {
+	vStr := c.DefaultQuery(key, "")
+	if vStr == "" {
+		return defaultVal
+	}
+	v, err := strconv.Atoi(vStr)
+	if err != nil || v < 1 {
+		return defaultVal
+	}
+	return v
 }
