@@ -6,4 +6,5 @@ export const sidebarMeta: TemplateMeta = {
   isPremium: true,
   tags: ['sidebar', 'two-column', 'modern', 'professional'],
   defaultColor: '#4f46e5',
+  description: 'Sidebar nổi bật với ảnh đại diện, hoàn hảo cho vị trí quản lý và sáng tạo.',
 }

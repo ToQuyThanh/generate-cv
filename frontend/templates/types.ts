@@ -1,8 +1,5 @@
 /**
  * templates/types.ts
- *
- * Interface dùng chung cho mọi template component.
- * Mỗi template nhận TemplateProps và tự quyết định layout, font, màu sắc.
  */
 
 import type {
@@ -17,33 +14,25 @@ import type {
   SkillItem,
 } from '@/types'
 
-// ─── Props chung cho mọi template ────────────────────────────────────────────
-
 export interface TemplateProps {
   sections: CVSection[]
   colorTheme: string
 }
 
-// ─── Metadata của template ────────────────────────────────────────────────────
-
 export interface TemplateMeta {
-  /** Phải khớp với id trong DB: 'template_modern_01' */
   id: string
   name: string
   isPremium: boolean
   tags: string[]
-  /** Màu accent mặc định khi user chọn template này lần đầu */
   defaultColor: string
+  /** Mô tả ngắn hiển thị bên dưới card template */
+  description?: string
 }
-
-// ─── Registry entry ───────────────────────────────────────────────────────────
 
 export interface TemplateEntry {
   meta: TemplateMeta
   component: React.ComponentType<TemplateProps>
 }
-
-// ─── Typed data helpers ───────────────────────────────────────────────────────
 
 export function getPersonal(sections: CVSection[]): Partial<PersonalData> {
   const sec = sections.find((s) => s.type === 'personal')

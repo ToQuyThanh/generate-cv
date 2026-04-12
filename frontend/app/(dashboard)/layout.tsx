@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Sidebar } from '@/components/shared/Sidebar'
+import { Sidebar, MobileHeader } from '@/components/shared/Sidebar'
 import { useAuthStore } from '@/store'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -17,10 +17,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
+      {/* Desktop sidebar */}
       <Sidebar />
-      <main className="flex-1 overflow-y-auto">
-        {children}
-      </main>
+
+      {/* Mobile: topbar + drawer bên trong */}
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <MobileHeader />
+        <main className="flex-1 overflow-y-auto">
+          {children}
+        </main>
+      </div>
     </div>
   )
 }
