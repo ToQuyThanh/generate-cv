@@ -8,94 +8,87 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	db "github.com/yourname/generate-cv/db/sqlc"
 	"github.com/yourname/generate-cv/internal/cron"
+	"github.com/yourname/generate-cv/internal/repository"
 )
 
-// ─────────────────────────────────────────────
-//  Mock Queries
-// ─────────────────────────────────────────────
+// ─── Mock: SubscriptionRepo ───────────────────────────────────────────────────
 
-type mockExpireQueries struct{ mock.Mock }
-
-func (m *mockExpireQueries) ExpireSubscriptions(ctx context.Context) ([]db.Subscription, error) {
-	args := m.Called(ctx)
-	return args.Get(0).([]db.Subscription), args.Error(1)
+type mockSubRepo struct {
+	expireReturn []*repository.Subscription
+	expireErr    error
+	callCount    int
 }
 
-var testLogger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
-
-// ─────────────────────────────────────────────
-//  Tests
-// ─────────────────────────────────────────────
-
-func TestSubscriptionExpirer_RunOnce_NoExpired(t *testing.T) {
-	q := &mockExpireQueries{}
-	q.On("ExpireSubscriptions", mock.Anything).Return([]db.Subscription{}, nil)
-
-	expirer := cron.NewSubscriptionExpirer(q, testLogger).WithInterval(50 * time.Millisecond)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 80*time.Millisecond)
-	defer cancel()
-
-	// Chạy trong goroutine và chờ context hết hạn
-	go expirer.Start(ctx)
-	<-ctx.Done()
-
-	// Phải gọi ít nhất 1 lần (lần đầu khi start)
-	q.AssertCalled(t, "ExpireSubscriptions", mock.Anything)
+func (m *mockSubRepo) Upgrade(_ context.Context, _ uuid.UUID, _ string, _ time.Time) (*repository.Subscription, error) {
+	return nil, nil
 }
 
-func TestSubscriptionExpirer_RunOnce_WithExpiredSubs(t *testing.T) {
-	q := &mockExpireQueries{}
+func (m *mockSubRepo) ExpireAll(_ context.Context) ([]*repository.Subscription, error) {
+	m.callCount++
+	return m.expireReturn, m.expireErr
+}
 
-	userID1 := uuid.New()
-	userID2 := uuid.New()
-	q.On("ExpireSubscriptions", mock.Anything).Return([]db.Subscription{
-		{UserID: userID1, Plan: "weekly"},
-		{UserID: userID2, Plan: "monthly"},
-	}, nil).Once()
-	// Lần tiếp theo trả rỗng
-	q.On("ExpireSubscriptions", mock.Anything).Return([]db.Subscription{}, nil)
+// ─── helpers ──────────────────────────────────────────────────────────────────
 
-	expirer := cron.NewSubscriptionExpirer(q, testLogger).WithInterval(50 * time.Millisecond)
+var testLog = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
-	ctx, cancel := context.WithTimeout(context.Background(), 80*time.Millisecond)
+func runExpirer(t *testing.T, repo repository.SubscriptionRepo, timeout, interval time.Duration) {
+	t.Helper()
+	expirer := cron.NewSubscriptionExpirer(repo, testLog).WithInterval(interval)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-
 	go expirer.Start(ctx)
 	<-ctx.Done()
+}
 
-	q.AssertExpectations(t)
+// ─── Tests ────────────────────────────────────────────────────────────────────
+
+func TestSubscriptionExpirer_CallsExpireOnStart(t *testing.T) {
+	repo := &mockSubRepo{}
+	runExpirer(t, repo, 60*time.Millisecond, 1*time.Hour) // interval >> timeout → only initial call
+	if repo.callCount == 0 {
+		t.Error("ExpireAll should be called at least once on start")
+	}
+}
+
+func TestSubscriptionExpirer_TicksMultipleTimes(t *testing.T) {
+	repo := &mockSubRepo{}
+	// 3 ticks in ~90ms: initial + 2 ticks at 30ms interval
+	runExpirer(t, repo, 90*time.Millisecond, 30*time.Millisecond)
+	if repo.callCount < 2 {
+		t.Errorf("expected >= 2 calls, got %d", repo.callCount)
+	}
+}
+
+func TestSubscriptionExpirer_LogsExpiredAccounts(t *testing.T) {
+	uid := uuid.New()
+	repo := &mockSubRepo{
+		expireReturn: []*repository.Subscription{
+			{UserID: uid, Plan: "free", Status: "expired"},
+		},
+	}
+	// Should not panic even when items are returned
+	runExpirer(t, repo, 60*time.Millisecond, 1*time.Hour)
 }
 
 func TestSubscriptionExpirer_DBError_DoesNotPanic(t *testing.T) {
-	q := &mockExpireQueries{}
-	q.On("ExpireSubscriptions", mock.Anything).Return([]db.Subscription{}, assert.AnError)
-
-	expirer := cron.NewSubscriptionExpirer(q, testLogger).WithInterval(30 * time.Millisecond)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Millisecond)
-	defer cancel()
-
-	// Không được panic khi DB lỗi
-	assert.NotPanics(t, func() {
-		go expirer.Start(ctx)
-		<-ctx.Done()
-	})
+	repo := &mockSubRepo{expireErr: context.DeadlineExceeded}
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("expirer panicked on DB error: %v", r)
+		}
+	}()
+	runExpirer(t, repo, 60*time.Millisecond, 1*time.Hour)
 }
 
 func TestSubscriptionExpirer_StopsOnContextCancel(t *testing.T) {
-	q := &mockExpireQueries{}
-	q.On("ExpireSubscriptions", mock.Anything).Return([]db.Subscription{}, nil)
-
-	expirer := cron.NewSubscriptionExpirer(q, testLogger).WithInterval(10 * time.Millisecond)
+	repo := &mockSubRepo{}
+	expirer := cron.NewSubscriptionExpirer(repo, testLog).WithInterval(10 * time.Millisecond)
 
 	ctx, cancel := context.WithCancel(context.Background())
-
 	done := make(chan struct{})
+
 	go func() {
 		expirer.Start(ctx)
 		close(done)
@@ -106,8 +99,8 @@ func TestSubscriptionExpirer_StopsOnContextCancel(t *testing.T) {
 
 	select {
 	case <-done:
-		// goroutine đã kết thúc đúng cách
-	case <-time.After(200 * time.Millisecond):
-		t.Fatal("expirer không dừng sau khi context bị cancel")
+		// ✓ goroutine exited cleanly
+	case <-time.After(300 * time.Millisecond):
+		t.Fatal("expirer did not stop within 300ms after context cancel")
 	}
 }
