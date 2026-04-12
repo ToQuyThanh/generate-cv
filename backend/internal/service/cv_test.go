@@ -25,16 +25,19 @@ func newMockCVRepo() *mockCVRepo {
 	return &mockCVRepo{store: make(map[uuid.UUID]*repository.CV)}
 }
 
-func (m *mockCVRepo) Create(_ context.Context, userID uuid.UUID, title, templateID, colorTheme string, sections json.RawMessage) (*repository.CV, error) {
+func (m *mockCVRepo) Create(_ context.Context, userID uuid.UUID, title, templateID, colorTheme string, sections json.RawMessage, profileID *uuid.UUID, profileSnapshot json.RawMessage) (*repository.CV, error) {
 	cv := &repository.CV{
-		ID:         uuid.New(),
-		UserID:     userID,
-		Title:      title,
-		TemplateID: templateID,
-		ColorTheme: colorTheme,
-		Sections:   sections,
-		CreatedAt:  time.Now(),
-		UpdatedAt:  time.Now(),
+		ID:              uuid.New(),
+		UserID:          userID,
+		ProfileID:       profileID,
+		Title:           title,
+		TemplateID:      templateID,
+		ColorTheme:      colorTheme,
+		Sections:        sections,
+		ProfileSnapshot: profileSnapshot,
+		Overrides:       json.RawMessage("{}"),
+		CreatedAt:       time.Now(),
+		UpdatedAt:       time.Now(),
 	}
 	m.store[cv.ID] = cv
 	return cv, nil
@@ -54,7 +57,6 @@ func (m *mockCVRepo) ListByUser(_ context.Context, userID uuid.UUID, limit, offs
 			result = append(result, *cv)
 		}
 	}
-	// naive pagination
 	start := offset
 	if start > len(result) {
 		return []repository.CV{}, nil
@@ -97,6 +99,26 @@ func (m *mockCVRepo) UpdateFields(_ context.Context, id uuid.UUID, title, templa
 	return cv, nil
 }
 
+func (m *mockCVRepo) UpdateOverrides(_ context.Context, id uuid.UUID, overrides json.RawMessage) (*repository.CV, error) {
+	cv, ok := m.store[id]
+	if !ok {
+		return nil, pgx.ErrNoRows
+	}
+	cv.Overrides = overrides
+	cv.UpdatedAt = time.Now()
+	return cv, nil
+}
+
+func (m *mockCVRepo) RefreshSnapshot(_ context.Context, id uuid.UUID, snapshot json.RawMessage) (*repository.CV, error) {
+	cv, ok := m.store[id]
+	if !ok {
+		return nil, pgx.ErrNoRows
+	}
+	cv.ProfileSnapshot = snapshot
+	cv.UpdatedAt = time.Now()
+	return cv, nil
+}
+
 func (m *mockCVRepo) Delete(_ context.Context, id uuid.UUID) error {
 	if _, ok := m.store[id]; !ok {
 		return pgx.ErrNoRows
@@ -109,7 +131,7 @@ func (m *mockCVRepo) Delete(_ context.Context, id uuid.UUID) error {
 
 func newCVService() (*service.CVService, *mockCVRepo) {
 	repo := newMockCVRepo()
-	return service.NewCVService(repo), repo
+	return service.NewCVService(repo, nil), repo
 }
 
 func newCVRequest() model.CreateCVRequest {
@@ -146,7 +168,7 @@ func TestCVService_Create_DefaultSections(t *testing.T) {
 	svc, _ := newCVService()
 
 	req := newCVRequest()
-	req.Sections = nil // no sections provided
+	req.Sections = nil
 
 	resp, err := svc.Create(context.Background(), uuid.New(), req)
 	if err != nil {
@@ -154,6 +176,25 @@ func TestCVService_Create_DefaultSections(t *testing.T) {
 	}
 	if string(resp.Sections) != "[]" {
 		t.Errorf("expected sections '[]', got '%s'", resp.Sections)
+	}
+}
+
+func TestCVService_Create_WithProfileID_NoProfileRepo(t *testing.T) {
+	// When profiles repo is nil (e.g. old clients), profile_id is ignored gracefully
+	svc, _ := newCVService()
+	userID := uuid.New()
+	profileID := uuid.New()
+
+	req := newCVRequest()
+	req.ProfileID = &profileID
+
+	// Should succeed — snapshot will be nil since profiles repo is nil
+	resp, err := svc.Create(context.Background(), userID, req)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if resp.ProfileID == nil || *resp.ProfileID != profileID {
+		t.Errorf("expected profile_id %s, got %v", profileID, resp.ProfileID)
 	}
 }
 
@@ -188,7 +229,6 @@ func TestCVService_Get_WrongOwner_Returns404(t *testing.T) {
 
 	created, _ := svc.Create(context.Background(), ownerID, newCVRequest())
 
-	// Attacker tries to access owner's CV → must get 404, not 403
 	_, err := svc.Get(context.Background(), attackerID, created.ID)
 	if !errors.Is(err, service.ErrCVNotFound) && !errors.Is(err, service.ErrCVForbidden) {
 		t.Errorf("expected not-found error for wrong owner, got: %v", err)
@@ -199,7 +239,6 @@ func TestCVService_List_Pagination(t *testing.T) {
 	svc, _ := newCVService()
 	userID := uuid.New()
 
-	// Create 3 CVs
 	for i := 0; i < 3; i++ {
 		req := newCVRequest()
 		req.Title = "CV " + string(rune('A'+i))
@@ -256,9 +295,8 @@ func TestCVService_Update_Success(t *testing.T) {
 	if updated.Title != newTitle {
 		t.Errorf("expected title '%s', got '%s'", newTitle, updated.Title)
 	}
-	// Other fields unchanged
 	if updated.TemplateID != created.TemplateID {
-		t.Errorf("template_id should not change")
+		t.Error("template_id should not change")
 	}
 }
 
@@ -275,6 +313,50 @@ func TestCVService_Update_WrongOwner(t *testing.T) {
 	}
 }
 
+func TestCVService_UpdateOverrides_Success(t *testing.T) {
+	svc, _ := newCVService()
+	userID := uuid.New()
+
+	created, _ := svc.Create(context.Background(), userID, newCVRequest())
+
+	overrides := json.RawMessage(`{"full_name":"Nguyen Van A"}`)
+	updated, err := svc.UpdateOverrides(context.Background(), userID, created.ID, model.UpdateCVOverridesRequest{
+		Overrides: overrides,
+	})
+	if err != nil {
+		t.Fatalf("update overrides: %v", err)
+	}
+	if string(updated.Overrides) != string(overrides) {
+		t.Errorf("expected overrides %s, got %s", overrides, updated.Overrides)
+	}
+}
+
+func TestCVService_UpdateOverrides_WrongOwner(t *testing.T) {
+	svc, _ := newCVService()
+	ownerID := uuid.New()
+
+	created, _ := svc.Create(context.Background(), ownerID, newCVRequest())
+
+	_, err := svc.UpdateOverrides(context.Background(), uuid.New(), created.ID, model.UpdateCVOverridesRequest{
+		Overrides: json.RawMessage(`{}`),
+	})
+	if !errors.Is(err, service.ErrCVNotFound) && !errors.Is(err, service.ErrCVForbidden) {
+		t.Errorf("expected ownership error, got: %v", err)
+	}
+}
+
+func TestCVService_SyncProfile_NoLinkedProfile(t *testing.T) {
+	svc, _ := newCVService()
+	userID := uuid.New()
+
+	created, _ := svc.Create(context.Background(), userID, newCVRequest())
+
+	_, err := svc.SyncProfile(context.Background(), userID, created.ID)
+	if err == nil {
+		t.Error("expected error when CV has no linked profile")
+	}
+}
+
 func TestCVService_Delete_Success(t *testing.T) {
 	svc, _ := newCVService()
 	userID := uuid.New()
@@ -285,7 +367,6 @@ func TestCVService_Delete_Success(t *testing.T) {
 		t.Fatalf("delete: %v", err)
 	}
 
-	// Should be gone
 	_, err := svc.Get(context.Background(), userID, created.ID)
 	if !errors.Is(err, service.ErrCVNotFound) {
 		t.Errorf("expected ErrCVNotFound after delete, got: %v", err)
@@ -344,7 +425,6 @@ func TestCVService_Duplicate_LongTitleTruncated(t *testing.T) {
 	svc, _ := newCVService()
 	userID := uuid.New()
 
-	// Create a CV with title exactly 200 chars
 	req := newCVRequest()
 	longTitle := ""
 	for len(longTitle) < 196 {

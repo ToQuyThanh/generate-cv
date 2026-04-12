@@ -24,12 +24,12 @@ func New(cfg *config.Config, pool *pgxpool.Pool, rdb *redis.Client) *gin.Engine 
 	}
 
 	r := gin.New()
-	r.Use(middleware.CORS(cfg.App.CORSOrigins)) // must be first
+	r.Use(middleware.CORS(cfg.App.CORSOrigins))
 	r.Use(middleware.RequestID())
 	r.Use(middleware.RequestLogger())
 	r.Use(gin.Recovery())
 
-	// Health check — used by Docker / load balancer
+	// Health check
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
@@ -41,11 +41,13 @@ func New(cfg *config.Config, pool *pgxpool.Pool, rdb *redis.Client) *gin.Engine 
 	resetRepo    := repository.NewPasswordResetTokenRepository(pool)
 	templateRepo := repository.NewTemplateRepository(pool)
 	cvRepo       := repository.NewCVRepository(pool)
+	profileRepo  := repository.NewProfileRepository(pool)
 
 	// ─── Services ─────────────────────────────────────────────────────────────
 	mailer      := email.NewNoOpSender()
 	authSvc     := service.NewAuthService(cfg, userRepo, refreshRepo, subRepo, resetRepo, mailer)
-	cvSvc       := service.NewCVService(cvRepo)
+	profileSvc  := service.NewProfileService(profileRepo)
+	cvSvc       := service.NewCVService(cvRepo, profileRepo)
 	userSvc     := service.NewUserService(userRepo, subRepo)
 	templateSvc := service.NewTemplateService(templateRepo)
 
@@ -53,6 +55,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool, rdb *redis.Client) *gin.Engine 
 	authHandler     := handler.NewAuthHandler(authSvc)
 	googleHandler   := handler.NewGoogleHandler(cfg)
 	cvHandler       := handler.NewCVHandler(cvSvc)
+	profileHandler  := handler.NewProfileHandler(profileSvc)
 	userHandler     := handler.NewUserHandler(userSvc)
 	templateHandler := handler.NewTemplateHandler(templateSvc)
 
@@ -104,18 +107,47 @@ func New(cfg *config.Config, pool *pgxpool.Pool, rdb *redis.Client) *gin.Engine 
 				users.GET("/me/subscription", userHandler.GetSubscription)
 			}
 
+			// ── Profiles ──────────────────────────────────────────────────────
+			profiles := protected.Group("/profiles")
+			if rdb != nil {
+				profiles.Use(middleware.RateLimit(rdb, 120, time.Minute))
+			}
+			{
+				profiles.GET("",    profileHandler.List)
+				profiles.POST("",   profileHandler.Create)
+				profiles.GET("/:id",    profileHandler.Get)
+				profiles.PUT("/:id",    profileHandler.Update)
+				profiles.DELETE("/:id", profileHandler.Delete)
+				profiles.PATCH("/:id/default", profileHandler.SetDefault)
+
+				// Sections
+				profiles.GET("/:id/sections",          profileHandler.ListSections)
+				profiles.POST("/:id/sections",         profileHandler.CreateSection)
+				profiles.PUT("/:id/sections/:sectionId",    profileHandler.UpdateSection)
+				profiles.DELETE("/:id/sections/:sectionId", profileHandler.DeleteSection)
+				profiles.PATCH("/:id/sections/reorder",     profileHandler.ReorderSections)
+
+				// Items (nested under profile + section for ownership chain)
+				profiles.POST("/:id/sections/:sectionId/items",              profileHandler.CreateItem)
+				profiles.PUT("/:id/sections/:sectionId/items/:itemId",       profileHandler.UpdateItem)
+				profiles.DELETE("/:id/sections/:sectionId/items/:itemId",    profileHandler.DeleteItem)
+				profiles.PATCH("/:id/sections/:sectionId/items/reorder",     profileHandler.ReorderItems)
+			}
+
 			// ── CV ────────────────────────────────────────────────────────────
 			cvs := protected.Group("/cvs")
 			if rdb != nil {
 				cvs.Use(middleware.RateLimit(rdb, 120, time.Minute))
 			}
 			{
-				cvs.GET("",                cvHandler.List)
-				cvs.POST("",               cvHandler.Create)
-				cvs.GET("/:id",            cvHandler.Get)
-				cvs.PATCH("/:id",          cvHandler.Update)
-				cvs.DELETE("/:id",         cvHandler.Delete)
-				cvs.POST("/:id/duplicate", cvHandler.Duplicate)
+				cvs.GET("",                    cvHandler.List)
+				cvs.POST("",                   cvHandler.Create)
+				cvs.GET("/:id",                cvHandler.Get)
+				cvs.PATCH("/:id",              cvHandler.Update)
+				cvs.DELETE("/:id",             cvHandler.Delete)
+				cvs.POST("/:id/duplicate",     cvHandler.Duplicate)
+				cvs.PUT("/:id/overrides",      cvHandler.UpdateOverrides)
+				cvs.POST("/:id/sync-profile",  cvHandler.SyncProfile)
 			}
 		}
 	}

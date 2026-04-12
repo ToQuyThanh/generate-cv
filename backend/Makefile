@@ -2,6 +2,7 @@
         test-service test-handler test-jwt test-middleware test-cv \
         test-user test-template test-week4 \
         test-payment test-payment-pkg test-cron test-week7 \
+        test-profile test-week5 \
         lint sqlc \
         migrate-up migrate-down migrate-status \
         docker-up docker-down docker-reset
@@ -40,7 +41,7 @@ test-jwt:
 test-middleware:
 	go test ./internal/middleware/... -v -race -count=1
 
-# Week 3 shorthand
+# CV tests
 test-cv:
 	go test ./internal/service/... ./internal/handler/... -run TestCV -v -race -count=1
 
@@ -51,29 +52,36 @@ test-user:
 test-template:
 	go test ./internal/service/... ./internal/handler/... -run TestTemplate -v -race -count=1
 
-# All week 4 tests (user + template + ratelimit)
 test-week4:
 	go test ./internal/service/... ./internal/handler/... ./internal/middleware/... \
 	    -run "TestUser|TestTemplate|TestRateLimit" -v -race -count=1
 
 ## ── Payment ──────────────────────────────────────────────────────────
 
-# Payment service unit tests (no DB needed)
 test-payment:
 	go test ./internal/service/... -run TestPayment -v -race -count=1
 
-# VNPay + MoMo provider package tests
 test-payment-pkg:
 	go test ./pkg/payment/... -v -race -count=1
 
-# Cron job unit tests
 test-cron:
 	go test ./internal/cron/... -v -race -count=1
 
-# All week 7 tests in one shot
 test-week7:
 	go test ./internal/service/... ./internal/cron/... ./pkg/payment/... \
 	    -run "TestPayment|TestSubscriptionExpirer|TestVNPay|TestMoMo|TestIsVNPay|TestExtract|TestIsSuccess" \
+	    -v -race -count=1
+
+## ── Profile (Phase 1 — plan_profile) ─────────────────────────────────────────
+
+# Profile service unit tests only
+test-profile:
+	go test ./internal/service/... -run TestProfile -v -race -count=1
+
+# All Phase 1 profile-system tests: profile service + updated CV service
+test-week5:
+	go test ./internal/service/... \
+	    -run "TestProfile|TestCV" \
 	    -v -race -count=1
 
 ## ── Lint ─────────────────────────────────────────────────────────────────────
