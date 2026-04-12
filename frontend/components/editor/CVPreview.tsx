@@ -1,22 +1,25 @@
 'use client'
 
 import { useEditorStore } from '@/store'
-import { CVMiniPreview } from '@/components/cv/CVMiniPreview'
+import { resolveTemplate } from '@/templates/registry'
 
 /**
  * CVPreview — Editor full-size preview (595px A4).
- * Dùng lại CVMiniPreview với containerWidth = 595 (= scale 1:1, không thu nhỏ).
+ *
+ * Resolve đúng template component từ registry theo cvData.template_id,
+ * render ở kích thước A4 thật (595px), không scale.
  */
 export function CVPreview() {
   const { cvData } = useEditorStore()
   if (!cvData) return null
 
+  const { component: TemplateComponent } = resolveTemplate(cvData.template_id)
+
   return (
     <div className="shadow-xl rounded overflow-hidden">
-      <CVMiniPreview
+      <TemplateComponent
         sections={cvData.sections}
         colorTheme={cvData.color_theme}
-        containerWidth={595}
       />
     </div>
   )

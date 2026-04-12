@@ -287,6 +287,76 @@ CREATE TABLE payment_transactions (
 
 ---
 
+
+
+---
+
+## Phase 3.5 — Template System (Đang thực hiện) 🔄
+
+> **Vấn đề hiện tại:** Tất cả template đang dùng chung một layout trong `CVMiniPreview.tsx`.
+> Chọn "Modern" hay "Executive" đều render ra giống nhau — chỉ khác màu.
+>
+> **Giải pháp:** Template-as-Code — mỗi template là một React component riêng.
+> DB chỉ lưu metadata. Layout, font, column layout nằm trong code.
+
+### Kiến trúc Template-as-Code
+
+```
+frontend/templates/
+├── types.ts          ← TemplateProps interface + data helpers
+├── registry.ts       ← map template_id → { component, meta }
+├── modern/           ← single-column, header màu, free
+│   ├── index.tsx
+│   └── meta.ts
+├── classic/          ← single-column, serif, không màu header, free
+│   ├── index.tsx
+│   └── meta.ts
+├── minimal/          ← two-column nhẹ, free
+│   ├── index.tsx
+│   └── meta.ts
+├── sidebar/          ← two-column sidebar trái, premium
+│   ├── index.tsx
+│   └── meta.ts
+├── executive/        ← premium, header đậm, serif
+│   ├── index.tsx
+│   └── meta.ts
+└── ...
+```
+
+### Checklist Phase 3.5
+
+**Infrastructure:**
+- [ ] `frontend/templates/types.ts` — `TemplateProps`, `TemplateMeta`, data helpers
+- [ ] `frontend/templates/registry.ts` — registry lookup + `resolveTemplate(id)`
+- [ ] Cập nhật `CVPreview.tsx` dùng registry thay vì `CVMiniPreview` hardcode
+- [ ] Cập nhật `CVMiniPreview.tsx` — nhận `templateId`, resolve từ registry
+- [ ] Script `scripts/seed-templates.ts` — đọc registry → upsert DB
+
+**Template implementation (3 free + 5 premium):**
+- [ ] `modern/` — single-column, header màu, contact row icons
+- [ ] `classic/` — single-column, không header màu, divider giữa sections
+- [ ] `minimal/` — two-column nhẹ (70/30), skills sidebar phải
+- [ ] `sidebar/` — two-column (35/65), sidebar trái màu đậm *(premium)*
+- [ ] `executive/` — single-column, header serif, elegant *(premium)*
+- [ ] `creative/` — colorful, icon section headers *(premium)*
+- [ ] `tech/` — dark header, mono font cho skills *(premium)*
+- [ ] `elegant/` — two-column, serif font *(premium)*
+
+**Quy trình thêm template mới:**
+```
+1. Tạo  frontend/templates/{tên}/meta.ts
+2. Tạo  frontend/templates/{tên}/index.tsx
+3. Đăng ký vào  frontend/templates/registry.ts
+4. npm run seed:templates   ← sync metadata lên DB
+```
+
+**Tests:**
+- [ ] `registry.test.ts` — resolveTemplate trả đúng component, fallback khi không tìm thấy
+- [ ] Snapshot test cho từng template với sample data
+
+
+---
+
 ## Phase 4 — Polish & Launch (Tuần 11–16)
 
 **Mục tiêu:** Tối ưu UX, SEO, và có người dùng thật trả tiền.

@@ -1,4 +1,4 @@
-# Tech Stack — Web Làm CV (Việt Nam)
+# Tech Stack — generate-cv (Việt Nam)
 
 > Lựa chọn công nghệ tối ưu cho team nhỏ (1–2 người), chi phí thấp, scale được khi cần.
 
@@ -14,9 +14,58 @@
 | UI Components | **shadcn/ui** | Customizable, không lock-in, dùng Radix UI bên dưới |
 | State Management | **Zustand** | Nhẹ, đơn giản, đủ dùng cho editor CV |
 | CV Editor | **React-based custom editor** | Drag & drop section, real-time preview |
-| PDF Preview | **react-pdf** | Render PDF preview trực tiếp trên browser |
 | Form | **React Hook Form + Zod** | Validation mạnh, ít re-render |
 | Icons | **Lucide React** | Nhẹ, consistent, MIT license |
+| Test | **Vitest + React Testing Library** | Nhanh, tích hợp tốt với Vite/Next.js |
+
+---
+
+## Template System (CV)
+
+> **Triết lý: Template-as-Code** — mỗi template là một React component độc lập,
+> DB chỉ lưu metadata (id, name, is_premium, tags). Layout và style nằm trong code.
+
+| Hạng mục | Công nghệ / Cách làm | Lý do chọn |
+|---|---|---|
+| Template component | **React (TSX)** + inline style hoặc Tailwind | Render pixel-perfect trong browser và khi export PDF |
+| Template registry | `templates/registry.ts` — map `template_id → component` | Single source of truth, thêm template = thêm 1 file |
+| Template props | Interface `TemplateProps` chung: `sections`, `colorTheme`, `width` | Mọi template đều dùng cùng props, dễ swap |
+| Thumbnail | Cùng component, scale down CSS `transform: scale()` | Không cần ảnh tĩnh, thumbnail luôn đúng với layout thật |
+| Metadata | `templates/{name}/meta.ts` — id, name, isPremium, tags, defaultColor | Đồng bộ với seed DB qua script |
+| Thêm template mới | Tạo folder + component + meta → đăng ký vào registry | Không cần thay đổi backend |
+| DB seed | Script `scripts/seed-templates.ts` đọc registry → gọi `UpsertTemplate` | DB luôn đồng bộ với code |
+| Gating premium | Registry expose `isPremium` → frontend check subscription | Không cần query DB riêng |
+
+### Cấu trúc thư mục template
+
+```
+frontend/templates/
+├── types.ts              ← TemplateProps interface + data helpers
+├── registry.ts           ← map template_id → { component, meta }
+├── modern/
+│   ├── index.tsx         ← layout component (single-column, header màu)
+│   └── meta.ts           ← { id: 'template_modern_01', name: 'Modern', ... }
+├── classic/
+│   ├── index.tsx
+│   └── meta.ts
+├── minimal/
+│   ├── index.tsx
+│   └── meta.ts
+├── sidebar/              ← template 2 cột (sidebar trái)
+│   ├── index.tsx
+│   └── meta.ts
+└── ...                   ← thêm template mới chỉ cần thêm folder
+```
+
+### Quy trình thêm template mới
+
+```
+1. Tạo  frontend/templates/{tên}/meta.ts      ← điền id, isPremium, tags, defaultColor
+2. Tạo  frontend/templates/{tên}/index.tsx    ← viết layout React
+3. Đăng ký vào  frontend/templates/registry.ts
+4. Chạy  npm run seed:templates               ← sync DB (upsert)
+5. Done — thumbnail tự sinh, không cần ảnh
+```
 
 ---
 
@@ -25,7 +74,7 @@
 | Hạng mục | Công nghệ | Lý do chọn |
 |---|---|---|
 | Language | **Go (Golang)** | Hiệu năng cao, binary nhỏ, phù hợp deploy on-prem |
-| Framework | **Gin** hoặc **Echo** | Nhẹ, mature, routing nhanh, nhiều middleware sẵn |
+| Framework | **Gin** | Nhẹ, mature, routing nhanh, nhiều middleware sẵn |
 | Database | **PostgreSQL** | Relational, ổn định, phù hợp cả GCP lẫn on-prem |
 | ORM / Query Builder | **sqlc** + **pgx** | Type-safe SQL, không magic, hiệu năng tốt |
 | Auth | **JWT** + Google OAuth2 | Tự quản lý, không phụ thuộc third-party auth |
@@ -34,6 +83,17 @@
 | File Storage | **GCS (Google Cloud Storage)** | Lưu CV template, PDF export, tích hợp tốt với GCP |
 | Email | **Resend** | Free 3,000 email/tháng, API đơn giản |
 | Queue / Background Job | **Asynq** + Redis | Go-native job queue, xử lý export PDF bất đồng bộ |
+| Migration | **goose** | CLI đơn giản, hỗ trợ up/down, idempotent |
+| Template DB | `templates` table — chỉ lưu metadata | Layout nằm ở frontend, DB không biết đến CSS |
+
+### Template API (backend chỉ lo metadata)
+
+```
+GET  /templates          → list { id, name, thumbnail_url, is_premium, tags }
+GET  /templates/:id      → detail 1 template
+```
+
+Backend **không** biết đến layout hay style của template. Mọi logic render đều ở frontend.
 
 ---
 
@@ -44,6 +104,7 @@
 | Nội địa | **VNPay + MoMo** | Phủ rộng thị trường VN, không cần thẻ quốc tế |
 | Quốc tế (tương lai) | **Stripe** | Khi mở rộng ra thị trường ngoài VN |
 | Subscription Logic | **Custom** (lưu trong DB) | Kiểm soát hoàn toàn gói tuần / gói tháng |
+| Giá | Weekly: 49.000đ · Monthly: 149.000đ | Config trong `config.go` qua env var |
 
 ---
 
@@ -67,30 +128,59 @@
 
 ```
 generate-cv/
-├── frontend/                  # Next.js App
-│   ├── app/                   # App Router pages
-│   ├── components/            # UI components
-│   ├── lib/                   # Utilities, hooks
-│   └── public/                # Static assets
+├── frontend/
+│   ├── app/
+│   │   ├── (auth)/            # /login, /register
+│   │   ├── (dashboard)/       # /dashboard, /cv/[id], /settings
+│   │   ├── pricing/           # /pricing
+│   │   └── payment/result/    # /payment/result
+│   ├── components/
+│   │   ├── cv/                # CVCard, CVMiniPreview
+│   │   ├── editor/            # EditorLayout, EditorPanel, sections/
+│   │   ├── payment/           # PaywallModal
+│   │   └── shared/            # Sidebar
+│   ├── templates/             ← Template-as-Code
+│   │   ├── types.ts           # TemplateProps interface
+│   │   ├── registry.ts        # map id → component
+│   │   ├── modern/            # layout + meta
+│   │   ├── classic/
+│   │   └── ...
+│   ├── lib/
+│   │   ├── api/               # axios client + endpoint wrappers
+│   │   ├── hooks/             # useAutoSave, ...
+│   │   └── utils/             # formatDate, getPlanLabel, ...
+│   ├── store/                 # Zustand stores (auth, editor)
+│   └── types/                 # TypeScript interfaces
 │
-└── backend/                   # Go API Server
-    ├── cmd/
-    │   └── server/            # Entry point (main.go)
+└── backend/
+    ├── cmd/server/            # main.go
     ├── internal/
-    │   ├── handler/           # HTTP handlers (Gin/Echo routes)
-    │   ├── service/           # Business logic (AI, PDF, payment)
-    │   ├── repository/        # DB queries (sqlc generated)
-    │   └── worker/            # Asynq background jobs
+    │   ├── handler/           # HTTP handlers
+    │   ├── service/           # Business logic
+    │   ├── repository/        # DB queries (sqlc)
+    │   ├── middleware/        # auth, cors, ratelimit, logger
+    │   ├── router/            # Gin engine setup
+    │   ├── routes/            # route registration per domain
+    │   ├── model/             # request/response structs
+    │   ├── cron/              # subscription expiry
+    │   └── worker/tasks/      # asynq task handlers
     ├── db/
-    │   ├── migrations/        # SQL migration files
+    │   ├── migrations/        # SQL migration files (goose)
     │   └── queries/           # sqlc query files
-    ├── Dockerfile
+    ├── pkg/
+    │   ├── ai/                # Claude API client
+    │   ├── payment/           # VNPay, MoMo providers
+    │   ├── pdf/               # go-rod PDF export
+    │   ├── storage/           # GCS client
+    │   ├── email/             # Resend client
+    │   ├── jwtutil/
+    │   └── redisutil/
     └── docker-compose.yml
 ```
 
 ---
 
-## Chi phí hạ tầng hàng tháng (giai đoạn MVP)
+## Chi phí hạ tầng hàng tháng (MVP)
 
 | Dịch vụ | Chi phí |
 |---|---|
@@ -101,8 +191,6 @@ generate-cv/
 | Claude API (AI) | ~$20/tháng (~500k VND) |
 | Cloudflare | Miễn phí |
 | **Tổng ước tính** | **~$25–30/tháng (~600–750k VND)** |
-
-> On-premise giúp tiết kiệm chi phí hosting backend và database đáng kể so với cloud thuần.
 
 ---
 
