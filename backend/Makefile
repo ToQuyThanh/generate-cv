@@ -1,6 +1,7 @@
 .PHONY: run test test-unit test-integration \
         test-service test-handler test-jwt test-middleware test-cv \
         test-user test-template test-week4 \
+        test-payment test-payment-pkg test-cron test-week7 \
         lint sqlc \
         migrate-up migrate-down migrate-status \
         docker-up docker-down docker-reset
@@ -18,7 +19,9 @@ test:
 
 # Unit tests only (no DB needed)
 test-unit:
-	go test ./internal/service/... ./internal/handler/... ./internal/middleware/... ./pkg/jwtutil/... -v -race -count=1
+	go test ./internal/service/... ./internal/handler/... ./internal/middleware/... \
+	    ./internal/cron/... ./pkg/jwtutil/... ./pkg/payment/... \
+	    -v -race -count=1
 
 # Integration tests (requires Docker DB)
 test-integration:
@@ -52,6 +55,26 @@ test-template:
 test-week4:
 	go test ./internal/service/... ./internal/handler/... ./internal/middleware/... \
 	    -run "TestUser|TestTemplate|TestRateLimit" -v -race -count=1
+
+## ── Payment ──────────────────────────────────────────────────────────
+
+# Payment service unit tests (no DB needed)
+test-payment:
+	go test ./internal/service/... -run TestPayment -v -race -count=1
+
+# VNPay + MoMo provider package tests
+test-payment-pkg:
+	go test ./pkg/payment/... -v -race -count=1
+
+# Cron job unit tests
+test-cron:
+	go test ./internal/cron/... -v -race -count=1
+
+# All week 7 tests in one shot
+test-week7:
+	go test ./internal/service/... ./internal/cron/... ./pkg/payment/... \
+	    -run "TestPayment|TestSubscriptionExpirer|TestVNPay|TestMoMo|TestIsVNPay|TestExtract|TestIsSuccess" \
+	    -v -race -count=1
 
 ## ── Lint ─────────────────────────────────────────────────────────────────────
 

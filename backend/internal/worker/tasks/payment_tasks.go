@@ -1,75 +1,60 @@
+// Package tasks defines background job payloads and handler interfaces.
+// It intentionally has NO dependency on any specific queue library (asynq, etc.)
+// so the rest of the codebase only depends on the JobEnqueuer interface.
 package tasks
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
-
-	"github.com/hibiken/asynq"
+	"log/slog"
 )
 
-// Task type constants
+// Task type constants — used as keys in the job queue.
 const (
 	TypeEmailPaymentSuccess = "email:payment_success"
 )
 
-// Enqueuer là interface để PaymentService enqueue job mà không phụ thuộc asynq trực tiếp.
-type Enqueuer interface {
-	EnqueuePaymentSuccess(ctx context.Context, userID, plan string) error
-}
-
-// AsynqEnqueuer implement Enqueuer bằng asynq.Client.
-type AsynqEnqueuer struct {
-	client *asynq.Client
-}
-
-func NewAsynqEnqueuer(client *asynq.Client) *AsynqEnqueuer {
-	return &AsynqEnqueuer{client: client}
-}
-
-// PaymentSuccessPayload là dữ liệu gửi kèm job email:payment_success.
+// PaymentSuccessPayload is the data carried by a TypeEmailPaymentSuccess job.
 type PaymentSuccessPayload struct {
 	UserID string `json:"user_id"`
 	Plan   string `json:"plan"`
 }
 
-// EnqueuePaymentSuccess enqueue job gửi email thông báo thanh toán thành công.
-// Job được retry tối đa 3 lần, timeout 30 giây.
-func (e *AsynqEnqueuer) EnqueuePaymentSuccess(ctx context.Context, userID, plan string) error {
-	payload, err := json.Marshal(PaymentSuccessPayload{UserID: userID, Plan: plan})
+// Encode serialises the payload to JSON bytes for enqueuing.
+func (p PaymentSuccessPayload) Encode() ([]byte, error) {
+	b, err := json.Marshal(p)
 	if err != nil {
-		return fmt.Errorf("enqueue payment success: marshal: %w", err)
+		return nil, fmt.Errorf("PaymentSuccessPayload.Encode: %w", err)
 	}
-
-	task := asynq.NewTask(TypeEmailPaymentSuccess, payload,
-		asynq.MaxRetry(3),
-		asynq.Timeout(30*time.Second),
-		asynq.Queue("email"),
-	)
-
-	_, err = e.client.EnqueueContext(ctx, task)
-	if err != nil {
-		return fmt.Errorf("enqueue payment success: enqueue: %w", err)
-	}
-
-	return nil
+	return b, nil
 }
 
-// HandlePaymentSuccessEmail là worker handler xử lý job email:payment_success.
-// Đăng ký vào asynq.ServeMux ở main.go.
-func HandlePaymentSuccessEmail(emailSvc EmailSender) asynq.HandlerFunc {
-	return func(ctx context.Context, t *asynq.Task) error {
-		var p PaymentSuccessPayload
-		if err := json.Unmarshal(t.Payload(), &p); err != nil {
-			return fmt.Errorf("handle payment_success email: unmarshal: %w", err)
-		}
-
-		return emailSvc.SendPaymentSuccess(ctx, p.UserID, p.Plan)
+// DecodePaymentSuccessPayload parses raw job bytes back into a payload.
+func DecodePaymentSuccessPayload(raw []byte) (*PaymentSuccessPayload, error) {
+	var p PaymentSuccessPayload
+	if err := json.Unmarshal(raw, &p); err != nil {
+		return nil, fmt.Errorf("DecodePaymentSuccessPayload: %w", err)
 	}
+	return &p, nil
 }
 
-// EmailSender interface — implement bằng Resend client ở pkg/email/.
+// EmailSender is the interface the job handler expects for sending emails.
+// Implement it with a real Resend client in pkg/email/.
 type EmailSender interface {
 	SendPaymentSuccess(ctx context.Context, userID, plan string) error
+}
+
+// HandlePaymentSuccessEmail returns a handler func (raw []byte) compatible
+// with whatever worker mux you wire up (Redis LPOP loop, asynq, etc.).
+// The handler decodes the payload and delegates to EmailSender.
+func HandlePaymentSuccessEmail(emailSvc EmailSender, log *slog.Logger) func(ctx context.Context, payload []byte) error {
+	return func(ctx context.Context, payload []byte) error {
+		p, err := DecodePaymentSuccessPayload(payload)
+		if err != nil {
+			return err
+		}
+		log.Info("sending payment success email", "user_id", p.UserID, "plan", p.Plan)
+		return emailSvc.SendPaymentSuccess(ctx, p.UserID, p.Plan)
+	}
 }

@@ -8,12 +8,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	db "github.com/yourname/generate-cv/db/sqlc"
-	"github.com/yourname/generate-cv/internal/worker/tasks"
+	"github.com/yourname/generate-cv/internal/model"
+	"github.com/yourname/generate-cv/internal/repository"
 	"github.com/yourname/generate-cv/pkg/payment"
 )
 
-// Giá gói (VND).
+// ─── Pricing ──────────────────────────────────────────────────────────────────
+
 const (
 	PriceWeekly  int64 = 49_000
 	PriceMonthly int64 = 149_000
@@ -22,226 +23,209 @@ const (
 	DurationMonthly = 30 * 24 * time.Hour
 )
 
-// CreatePaymentRequest — input từ handler.
-type CreatePaymentRequest struct {
-	UserID   uuid.UUID
-	Plan     string // "weekly" | "monthly"
-	Method   string // "vnpay" | "momo"
-	ClientIP string // dùng cho VNPay
+// ─── JobEnqueuer ──────────────────────────────────────────────────────────────
+
+// JobEnqueuer abstracts background job enqueueing so PaymentService
+// does not depend on any specific queue library (asynq, etc.).
+type JobEnqueuer interface {
+	EnqueuePaymentSuccess(ctx context.Context, userID, plan string) error
 }
 
-// CreatePaymentResponse — output trả về client.
-type CreatePaymentResponse struct {
-	TransactionID string `json:"transaction_id"`
-	PaymentURL    string `json:"payment_url"`
-}
+// ─── PaymentService ───────────────────────────────────────────────────────────
 
-// PaymentService xử lý toàn bộ business logic thanh toán.
 type PaymentService struct {
-	queries   *db.Queries
-	vnpay     *payment.VNPayProvider
-	momo      *payment.MoMoProvider
-	taskQueue tasks.Enqueuer
-	log       *slog.Logger
+	payRepo  repository.PaymentRepo
+	subRepo  repository.SubscriptionRepo
+	vnpay    *payment.VNPayProvider
+	momo     *payment.MoMoProvider
+	enqueuer JobEnqueuer
+	log      *slog.Logger
 }
 
-// NewPaymentService khởi tạo service.
 func NewPaymentService(
-	q *db.Queries,
+	payRepo repository.PaymentRepo,
+	subRepo repository.SubscriptionRepo,
 	vnpay *payment.VNPayProvider,
 	momo *payment.MoMoProvider,
-	enqueuer tasks.Enqueuer,
+	enqueuer JobEnqueuer,
 	log *slog.Logger,
 ) *PaymentService {
 	return &PaymentService{
-		queries:   q,
-		vnpay:     vnpay,
-		momo:      momo,
-		taskQueue: enqueuer,
-		log:       log,
+		payRepo:  payRepo,
+		subRepo:  subRepo,
+		vnpay:    vnpay,
+		momo:     momo,
+		enqueuer: enqueuer,
+		log:      log,
 	}
 }
 
-// CreatePayment tạo bản ghi pending + trả URL thanh toán.
-func (s *PaymentService) CreatePayment(ctx context.Context, req CreatePaymentRequest) (*CreatePaymentResponse, error) {
-	// Xác định số tiền theo gói
+// ─── CreatePayment ────────────────────────────────────────────────────────────
+
+// CreatePayment creates a pending transaction and returns a provider payment URL.
+func (s *PaymentService) CreatePayment(ctx context.Context, userID uuid.UUID, req *model.CreatePaymentRequest, clientIP string) (*model.CreatePaymentResponse, error) {
 	amount, err := planToAmount(req.Plan)
 	if err != nil {
 		return nil, err
 	}
 
-	// Tạo bản ghi pending trong DB
-	txn, err := s.queries.CreatePaymentTransaction(ctx, db.CreatePaymentTransactionParams{
-		UserID:    req.UserID,
-		Plan:      req.Plan,
-		Method:    req.Method,
-		AmountVnd: int32(amount),
-	})
+	txn, err := s.payRepo.Create(ctx, userID, req.Plan, req.Method, amount)
 	if err != nil {
-		return nil, fmt.Errorf("payment: create transaction record: %w", err)
+		return nil, fmt.Errorf("payment: create transaction: %w", err)
 	}
 
-	txnIDStr := txn.ID.String()
-	orderInfo := fmt.Sprintf("Generate CV - Gói %s", req.Plan)
-
+	orderInfo := fmt.Sprintf("Generate CV - Goi %s", req.Plan)
 	var payURL string
 
 	switch req.Method {
 	case "vnpay":
-		payURL = s.vnpay.CreatePaymentURL(txnIDStr, amount, orderInfo, req.ClientIP)
+		payURL = s.vnpay.CreatePaymentURL(txn.ID.String(), amount, orderInfo, clientIP)
 
 	case "momo":
-		momoResp, err := s.momo.CreatePaymentURL(ctx, txnIDStr, amount, orderInfo)
+		resp, err := s.momo.CreatePaymentURL(ctx, txn.ID.String(), amount, orderInfo)
 		if err != nil {
-			s.log.Error("momo create payment failed", "txn_id", txnIDStr, "err", err)
-			return nil, fmt.Errorf("payment: momo create url: %w", err)
+			s.log.Error("momo create url failed", "txn_id", txn.ID, "err", err)
+			return nil, fmt.Errorf("payment: momo: %w", err)
 		}
-		payURL = momoResp.PayURL
+		payURL = resp.PayURL
 
 	default:
 		return nil, fmt.Errorf("payment: unsupported method %q", req.Method)
 	}
 
-	s.log.Info("payment created", "txn_id", txnIDStr, "plan", req.Plan, "method", req.Method)
-
-	return &CreatePaymentResponse{
-		TransactionID: txnIDStr,
+	s.log.Info("payment created", "txn_id", txn.ID, "plan", req.Plan, "method", req.Method)
+	return &model.CreatePaymentResponse{
+		TransactionID: txn.ID.String(),
 		PaymentURL:    payURL,
 	}, nil
 }
 
-// HandleVNPayCallback xử lý redirect callback (GET) từ VNPay.
-// Trả về (success bool, txnID string).
-func (s *PaymentService) HandleVNPayCallback(ctx context.Context, queryParams url.Values) (bool, string, error) {
-	if !s.vnpay.VerifyWebhook(queryParams) {
-		return false, "", fmt.Errorf("vnpay: invalid signature")
+// ─── VNPay ────────────────────────────────────────────────────────────────────
+
+// HandleVNPayCallback processes the browser redirect (GET) from VNPay.
+// Returns (success, txnID) so the handler can redirect the user.
+func (s *PaymentService) HandleVNPayCallback(ctx context.Context, params url.Values) (success bool, txnID string, err error) {
+	if !s.vnpay.VerifyWebhook(params) {
+		return false, "", fmt.Errorf("vnpay callback: invalid signature")
 	}
-
-	txnRef, transactionNo := payment.ExtractVNPayInfo(queryParams)
-	success := payment.IsVNPaySuccess(queryParams)
-
-	if err := s.finalizeTransaction(ctx, txnRef, transactionNo, success); err != nil {
+	txnRef, providerRef := payment.ExtractVNPayInfo(params)
+	ok := payment.IsVNPaySuccess(params)
+	if err := s.finalize(ctx, txnRef, providerRef, ok); err != nil {
 		return false, txnRef, err
 	}
-
-	return success, txnRef, nil
+	return ok, txnRef, nil
 }
 
-// HandleVNPayWebhook xử lý IPN (POST) server-to-server từ VNPay.
-func (s *PaymentService) HandleVNPayWebhook(ctx context.Context, queryParams url.Values) error {
-	if !s.vnpay.VerifyWebhook(queryParams) {
+// HandleVNPayWebhook processes the server-to-server IPN (POST) from VNPay.
+func (s *PaymentService) HandleVNPayWebhook(ctx context.Context, params url.Values) error {
+	if !s.vnpay.VerifyWebhook(params) {
 		return fmt.Errorf("vnpay webhook: invalid signature")
 	}
-
-	txnRef, transactionNo := payment.ExtractVNPayInfo(queryParams)
-	success := payment.IsVNPaySuccess(queryParams)
-
-	return s.finalizeTransaction(ctx, txnRef, transactionNo, success)
+	txnRef, providerRef := payment.ExtractVNPayInfo(params)
+	return s.finalize(ctx, txnRef, providerRef, payment.IsVNPaySuccess(params))
 }
 
-// HandleMoMoWebhook xử lý IPN (POST) từ MoMo.
+// ─── MoMo ─────────────────────────────────────────────────────────────────────
+
+// HandleMoMoWebhook processes the server-to-server IPN (POST) from MoMo.
 func (s *PaymentService) HandleMoMoWebhook(ctx context.Context, payload *payment.MoMoIPNPayload) error {
 	if !s.momo.VerifyIPN(payload) {
 		return fmt.Errorf("momo webhook: invalid signature")
 	}
-
 	providerRef := fmt.Sprintf("%d", payload.TransID)
-	success := s.momo.IsSuccess(payload)
-
-	return s.finalizeTransaction(ctx, payload.OrderID, providerRef, success)
+	return s.finalize(ctx, payload.OrderID, providerRef, s.momo.IsSuccess(payload))
 }
 
-// finalizeTransaction cập nhật DB (idempotent) và kích hoạt subscription nếu success.
-func (s *PaymentService) finalizeTransaction(ctx context.Context, txnID, providerRef string, success bool) error {
-	parsedID, err := uuid.Parse(txnID)
-	if err != nil {
-		return fmt.Errorf("finalize: invalid txn_id %q: %w", txnID, err)
-	}
+// ─── History ──────────────────────────────────────────────────────────────────
 
-	var txn db.PaymentTransaction
-
-	if success {
-		txn, err = s.queries.UpdatePaymentTransactionSuccess(ctx, db.UpdatePaymentTransactionSuccessParams{
-			ID:          parsedID,
-			ProviderRef: providerRef,
-		})
-	} else {
-		txn, err = s.queries.UpdatePaymentTransactionFailed(ctx, db.UpdatePaymentTransactionFailedParams{
-			ID:          parsedID,
-			ProviderRef: providerRef,
-		})
-	}
-
-	if err != nil {
-		// Có thể đã xử lý rồi (idempotent), log nhưng không báo lỗi fatal
-		s.log.Warn("finalize transaction: update returned no rows (possibly duplicate webhook)",
-			"txn_id", txnID, "err", err)
-		return nil
-	}
-
-	if !success {
-		s.log.Info("payment failed", "txn_id", txnID, "provider_ref", providerRef)
-		return nil
-	}
-
-	// Tính thời hạn subscription mới
-	duration, err := planToDuration(txn.Plan)
-	if err != nil {
-		return err
-	}
-	expiresAt := time.Now().Add(duration)
-
-	// Cập nhật subscription
-	if _, err := s.queries.UpdateSubscription(ctx, db.UpdateSubscriptionParams{
-		UserID:    txn.UserID,
-		Plan:      txn.Plan,
-		ExpiresAt: expiresAt,
-	}); err != nil {
-		return fmt.Errorf("finalize: update subscription: %w", err)
-	}
-
-	// Enqueue email job
-	if err := s.taskQueue.EnqueuePaymentSuccess(ctx, txn.UserID.String(), txn.Plan); err != nil {
-		// Email không quan trọng bằng thanh toán — chỉ log, không fail
-		s.log.Error("enqueue payment_success email failed", "user_id", txn.UserID, "err", err)
-	}
-
-	s.log.Info("payment success — subscription updated",
-		"txn_id", txnID, "user_id", txn.UserID,
-		"plan", txn.Plan, "expires_at", expiresAt)
-
-	return nil
-}
-
-// GetPaymentHistory trả danh sách giao dịch có pagination.
-func (s *PaymentService) GetPaymentHistory(ctx context.Context, userID uuid.UUID, page, pageSize int32) ([]db.PaymentTransaction, int64, error) {
+// GetHistory returns paginated payment history for a user.
+func (s *PaymentService) GetHistory(ctx context.Context, userID uuid.UUID, page, pageSize int) (*model.PaymentHistoryResponse, error) {
 	if page < 1 {
 		page = 1
 	}
 	if pageSize < 1 || pageSize > 100 {
 		pageSize = 20
 	}
-
 	offset := (page - 1) * pageSize
 
-	txns, err := s.queries.ListPaymentTransactionsByUser(ctx, db.ListPaymentTransactionsByUserParams{
-		UserID: userID,
-		Limit:  pageSize,
-		Offset: offset,
-	})
+	txns, err := s.payRepo.List(ctx, userID, pageSize, offset)
 	if err != nil {
-		return nil, 0, fmt.Errorf("payment history: list: %w", err)
+		return nil, fmt.Errorf("payment history: list: %w", err)
 	}
 
-	total, err := s.queries.CountPaymentTransactionsByUser(ctx, userID)
+	total, err := s.payRepo.Count(ctx, userID)
 	if err != nil {
-		return nil, 0, fmt.Errorf("payment history: count: %w", err)
+		return nil, fmt.Errorf("payment history: count: %w", err)
 	}
 
-	return txns, total, nil
+	items := make([]model.PaymentTransactionResponse, len(txns))
+	for i, t := range txns {
+		items[i] = model.PaymentTransactionResponse{
+			ID:          t.ID,
+			Plan:        t.Plan,
+			Method:      t.Method,
+			AmountVND:   t.AmountVND,
+			Status:      t.Status,
+			ProviderRef: t.ProviderRef,
+			CreatedAt:   t.CreatedAt,
+			PaidAt:      t.PaidAt,
+		}
+	}
+
+	return &model.PaymentHistoryResponse{
+		Data: items,
+		Meta: model.PaginationMeta{Total: total, Page: page, PageSize: pageSize},
+	}, nil
 }
 
-// ----------- helpers -----------
+// ─── finalize (internal, idempotent) ─────────────────────────────────────────
+
+func (s *PaymentService) finalize(ctx context.Context, txnIDStr, providerRef string, success bool) error {
+	id, err := uuid.Parse(txnIDStr)
+	if err != nil {
+		return fmt.Errorf("finalize: invalid txn_id %q: %w", txnIDStr, err)
+	}
+
+	var txn *repository.PaymentTransaction
+
+	if success {
+		txn, err = s.payRepo.MarkSuccess(ctx, id, providerRef)
+	} else {
+		txn, err = s.payRepo.MarkFailed(ctx, id, providerRef)
+	}
+
+	if err != nil {
+		// pgx.ErrNoRows means already processed — treat as idempotent, not an error.
+		if repository.IsNotFound(err) {
+			s.log.Warn("finalize: transaction already processed (duplicate webhook)", "txn_id", txnIDStr)
+			return nil
+		}
+		return fmt.Errorf("finalize: update transaction: %w", err)
+	}
+
+	if !success {
+		s.log.Info("payment failed", "txn_id", txnIDStr, "provider_ref", providerRef)
+		return nil
+	}
+
+	// Upgrade subscription
+	duration, _ := planToDuration(txn.Plan)
+	expiresAt := time.Now().Add(duration)
+
+	if _, err := s.subRepo.Upgrade(ctx, txn.UserID, txn.Plan, expiresAt); err != nil {
+		return fmt.Errorf("finalize: upgrade subscription: %w", err)
+	}
+
+	// Enqueue email — non-fatal if it fails
+	if err := s.enqueuer.EnqueuePaymentSuccess(ctx, txn.UserID.String(), txn.Plan); err != nil {
+		s.log.Error("enqueue payment_success email failed", "user_id", txn.UserID, "err", err)
+	}
+
+	s.log.Info("payment success", "txn_id", txnIDStr, "user_id", txn.UserID, "plan", txn.Plan, "expires_at", expiresAt)
+	return nil
+}
+
+// ─── helpers ──────────────────────────────────────────────────────────────────
 
 func planToAmount(plan string) (int64, error) {
 	switch plan {

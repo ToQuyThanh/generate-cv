@@ -1,3 +1,4 @@
+// Package cron contains periodic background jobs.
 package cron
 
 import (
@@ -5,40 +6,40 @@ import (
 	"log/slog"
 	"time"
 
-	db "github.com/yourname/generate-cv/db/sqlc"
+	"github.com/yourname/generate-cv/internal/repository"
 )
 
-// SubscriptionExpirer là cron job chạy mỗi giờ,
-// hạ cấp tất cả tài khoản có subscription đã hết hạn xuống gói free.
+// SubscriptionExpirer runs every hour and downgrades accounts
+// whose subscription has passed its expires_at.
 type SubscriptionExpirer struct {
-	queries  *db.Queries
+	repo     repository.SubscriptionRepo
 	log      *slog.Logger
 	interval time.Duration
 }
 
-// NewSubscriptionExpirer tạo job với interval mặc định 1 giờ.
-func NewSubscriptionExpirer(q *db.Queries, log *slog.Logger) *SubscriptionExpirer {
+// NewSubscriptionExpirer creates the expirer with a default 1-hour interval.
+func NewSubscriptionExpirer(repo repository.SubscriptionRepo, log *slog.Logger) *SubscriptionExpirer {
 	return &SubscriptionExpirer{
-		queries:  q,
+		repo:     repo,
 		log:      log,
-		interval: 1 * time.Hour,
+		interval: time.Hour,
 	}
 }
 
-// WithInterval cho phép override interval (dùng trong test).
+// WithInterval overrides the tick interval — useful in tests.
 func (j *SubscriptionExpirer) WithInterval(d time.Duration) *SubscriptionExpirer {
 	j.interval = d
 	return j
 }
 
-// Start chạy job theo vòng lặp cho đến khi ctx bị cancel.
-// Gọi trong goroutine riêng từ main.go.
+// Start runs the expiry loop until ctx is cancelled.
+// Call in a dedicated goroutine from main.go:
 //
-//	go cronExpirer.Start(ctx)
+//	go expirer.Start(ctx)
 func (j *SubscriptionExpirer) Start(ctx context.Context) {
 	j.log.Info("subscription expirer started", "interval", j.interval)
 
-	// Chạy ngay lần đầu khi start, sau đó lặp theo interval
+	// Run once immediately on start, then tick.
 	j.run(ctx)
 
 	ticker := time.NewTicker(j.interval)
@@ -55,30 +56,25 @@ func (j *SubscriptionExpirer) Start(ctx context.Context) {
 	}
 }
 
-// run thực thi một lần expire.
 func (j *SubscriptionExpirer) run(ctx context.Context) {
 	start := time.Now()
 
-	expired, err := j.queries.ExpireSubscriptions(ctx)
+	expired, err := j.repo.ExpireAll(ctx)
 	if err != nil {
 		j.log.Error("subscription expirer: query failed", "err", err)
 		return
 	}
 
 	if len(expired) == 0 {
-		j.log.Debug("subscription expirer: no expired subscriptions")
+		j.log.Debug("subscription expirer: nothing to expire")
 		return
 	}
 
-	// Log từng user bị hạ cấp để audit
-	for _, sub := range expired {
-		j.log.Info("subscription expired — downgraded to free",
-			"user_id", sub.UserID,
-			"old_plan", sub.Plan,
-		)
+	for _, s := range expired {
+		j.log.Info("subscription expired — downgraded to free", "user_id", s.UserID)
 	}
 
-	j.log.Info("subscription expirer: done",
+	j.log.Info("subscription expirer: cycle done",
 		"count", len(expired),
 		"elapsed", time.Since(start))
 }
