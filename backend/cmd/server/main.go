@@ -40,13 +40,7 @@ func main() {
 	defer pool.Close()
 	log.Println("✅  Connected to PostgreSQL")
 
-	// 4. Run migrations
-	if err := database.RunMigrations(cfg.DB); err != nil {
-		log.Fatalf("failed to run migrations: %v", err)
-	}
-	log.Println("✅  Migrations applied")
-
-	// 5. Connect to Redis
+	// 4. Connect to Redis
 	rdb, err := redisutil.NewClient(cfg.Redis.Addr, cfg.Redis.Password)
 	if err != nil {
 		log.Fatalf("failed to connect to redis: %v", err)
@@ -54,10 +48,10 @@ func main() {
 	defer rdb.Close()
 	log.Println("✅  Connected to Redis")
 
-	// 6. Build router (inject pool + redis for dependency wiring)
+	// 5. Build router
 	r := router.New(cfg, pool, rdb)
 
-	// 7. Create HTTP server
+	// 6. Create HTTP server
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%s", cfg.App.Port),
 		Handler:      r,
@@ -66,7 +60,7 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// 8. Start in background goroutine
+	// 7. Start in background goroutine
 	go func() {
 		log.Printf("🚀  Server listening on :%s  [env=%s]", cfg.App.Port, cfg.App.Env)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -74,7 +68,7 @@ func main() {
 		}
 	}()
 
-	// 9. Graceful shutdown on SIGINT / SIGTERM
+	// 8. Graceful shutdown on SIGINT / SIGTERM
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
