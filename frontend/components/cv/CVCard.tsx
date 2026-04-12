@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { MoreHorizontal, Pencil, Copy, Trash2, FileText } from 'lucide-react'
-import { DropdownMenu } from 'radix-ui'
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 
 import { Button } from '@/components/ui/button'
 import { formatRelativeTime } from '@/lib/utils'
@@ -63,7 +63,6 @@ export function CVCard({ cv, onDuplicate, onDelete }: CVCardProps) {
           <p className="text-xs text-muted-foreground">{formatRelativeTime(cv.updated_at)}</p>
         </div>
 
-        {/* Actions dropdown */}
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
             <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" aria-label="More options">

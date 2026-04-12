@@ -7,10 +7,11 @@ import type {
   PaginatedResponse,
 } from '@/types'
 
+// Backend dùng per_page (không phải limit)
 export const cvApi = {
-  list: (page = 1, limit = 12) =>
+  list: (page = 1, perPage = 12) =>
     apiClient
-      .get<PaginatedResponse<CVListItem>>('/cvs', { params: { page, limit } })
+      .get<PaginatedResponse<CVListItem>>('/cvs', { params: { page, per_page: perPage } })
       .then((r) => r.data),
 
   get: (id: string) =>
@@ -33,7 +34,7 @@ export const cvApi = {
 
   pollExport: (id: string, jobId: string) =>
     apiClient
-      .get<{ status: 'pending' | 'done' | 'failed'; url?: string }>(
+      .get<{ status: 'pending' | 'processing' | 'done' | 'failed'; url?: string }>(
         `/cvs/${id}/export/${jobId}`
       )
       .then((r) => r.data),

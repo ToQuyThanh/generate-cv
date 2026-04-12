@@ -10,14 +10,15 @@ interface AuthState {
   refreshToken: string | null
   isAuthenticated: boolean
 
+  // AuthResponse từ backend KHÔNG có subscription (chỉ có user, access_token, refresh_token)
+  // Subscription được set riêng sau khi gọi /users/me
   setAuth: (payload: {
     user: User
-    subscription: Subscription
     access_token: string
     refresh_token: string
   }) => void
   setUser: (user: User) => void
-  setSubscription: (sub: Subscription) => void
+  setSubscription: (sub: Subscription | null) => void
   clearAuth: () => void
 }
 
@@ -30,15 +31,13 @@ export const useAuthStore = create<AuthState>()(
       refreshToken: null,
       isAuthenticated: false,
 
-      setAuth: ({ user, subscription, access_token, refresh_token }) => {
-        // Lưu token vào localStorage để Axios interceptor đọc được
+      setAuth: ({ user, access_token, refresh_token }) => {
         if (typeof window !== 'undefined') {
           localStorage.setItem(TOKEN_KEY, access_token)
           localStorage.setItem(REFRESH_TOKEN_KEY, refresh_token)
         }
         set({
           user,
-          subscription,
           accessToken: access_token,
           refreshToken: refresh_token,
           isAuthenticated: true,
@@ -65,7 +64,6 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'gcv-auth',
-      // Chỉ persist user + subscription, không persist token (đã có localStorage riêng)
       partialize: (state) => ({
         user: state.user,
         subscription: state.subscription,

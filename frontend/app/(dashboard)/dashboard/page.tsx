@@ -34,15 +34,8 @@ export default function DashboardPage() {
   }, [fetchCVs])
 
   const handleCreateCV = async () => {
-    setCreating(true)
-    try {
-      const cv = await cvApi.create({ template_id: 'template_modern_01', title: 'CV của tôi' })
-      toast.success('Đã tạo CV mới!')
-      router.push(`/cv/${cv.id}`)
-    } catch {
-      toast.error('Không thể tạo CV. Vui lòng thử lại.')
-      setCreating(false)
-    }
+    // Redirect sang trang chọn template thay vì tạo thẳng
+    router.push('/cv/new')
   }
 
   const handleDuplicate = async (id: string) => {
@@ -81,7 +74,7 @@ export default function DashboardPage() {
               : 'Bắt đầu tạo CV đầu tiên của bạn ngay hôm nay.'}
           </p>
         </div>
-        <Button onClick={handleCreateCV} loading={creating} className="gap-2">
+        <Button onClick={handleCreateCV} disabled={creating} className="gap-2">
           <Plus className="h-4 w-4" />
           Tạo CV mới
         </Button>
@@ -133,7 +126,7 @@ function EmptyState({ onCreateCV, creating }: { onCreateCV: () => void; creating
         <p className="font-medium">Chưa có CV nào</p>
         <p className="text-sm text-muted-foreground mt-1">Tạo CV đầu tiên để bắt đầu hành trình</p>
       </div>
-      <Button onClick={onCreateCV} loading={creating} size="sm">
+      <Button onClick={onCreateCV} disabled={creating} size="sm">
         <Plus className="h-4 w-4 mr-1" />
         Tạo CV đầu tiên
       </Button>
