@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle2, Crown, Loader2, ArrowLeft } from 'lucide-react'
+import { CheckCircle2, Crown, Loader2, ArrowLeft, Zap } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -18,21 +18,24 @@ const PLANS: {
   priceNote: string
   perDay: string
   popular?: boolean
+  accentColor: string
 }[] = [
   {
     id: 'weekly',
     label: 'Gói Tuần',
     price: '49.000đ',
     priceNote: '/ 7 ngày',
-    perDay: '~7.000đ/ngày',
+    perDay: '~7.000đ / ngày',
+    accentColor: 'var(--wf-purple)',
   },
   {
     id: 'monthly',
     label: 'Gói Tháng',
     price: '149.000đ',
     priceNote: '/ 30 ngày',
-    perDay: '~5.000đ/ngày',
+    perDay: '~5.000đ / ngày',
     popular: true,
+    accentColor: 'var(--wf-blue)',
   },
 ]
 
@@ -74,70 +77,90 @@ export default function PricingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
-      {/* Header */}
-      <div className="max-w-3xl mx-auto px-4 pt-8 pb-2">
-        <Button variant="ghost" size="sm" className="gap-2 mb-6" onClick={() => router.back()}>
+    <div className="min-h-screen bg-white">
+      {/* ── Page header ── */}
+      <div className="max-w-3xl mx-auto px-6 pt-8 pb-0">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-2 mb-8 -ml-1"
+          onClick={() => router.back()}
+        >
           <ArrowLeft className="h-4 w-4" /> Quay lại
         </Button>
-        <div className="text-center space-y-2">
+
+        <div className="text-center space-y-3 pb-8 border-b border-wf-border">
+          {/* Icon */}
           <div className="flex justify-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10">
-              <Crown className="h-6 w-6 text-primary" />
+            <div className="flex h-12 w-12 items-center justify-center rounded bg-[rgba(20,110,245,0.08)]">
+              <Crown className="h-6 w-6 text-wf-blue" />
             </div>
           </div>
-          <h1 className="text-3xl font-bold tracking-tight">Nâng cấp tài khoản</h1>
-          <p className="text-muted-foreground">
+          {/* Label */}
+          <p className="wf-label">Pricing</p>
+          <h1 className="text-[32px] font-semibold tracking-[-0.03em] text-wf-black leading-tight">
+            Nâng cấp tài khoản
+          </h1>
+          <p className="text-base text-wf-gray-500 max-w-sm mx-auto leading-relaxed">
             Mở khoá toàn bộ tính năng, tạo CV chuyên nghiệp hơn
           </p>
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto px-4 py-8 grid lg:grid-cols-2 gap-8">
-        {/* Left — Plan + Method selection */}
-        <div className="space-y-5">
+      {/* ── Content grid ── */}
+      <div className="max-w-3xl mx-auto px-6 py-8 grid lg:grid-cols-[1fr_320px] gap-8 items-start">
+
+        {/* Left — selectors + CTA */}
+        <div className="space-y-6">
+
           {/* Plan picker */}
           <div className="space-y-3">
-            <p className="text-sm font-semibold">Chọn gói</p>
-            {PLANS.map((plan) => (
-              <button
-                key={plan.id}
-                onClick={() => setSelectedPlan(plan.id)}
-                className={cn(
-                  'relative w-full rounded-xl border-2 p-4 text-left transition-all',
-                  selectedPlan === plan.id
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border hover:border-primary/40'
-                )}
-              >
-                {plan.popular && (
-                  <span className="absolute top-3 right-3 text-[10px] font-semibold rounded-full bg-primary text-primary-foreground px-2 py-0.5">
-                    Phổ biến nhất
-                  </span>
-                )}
-                <p className="font-semibold">{plan.label}</p>
-                <div className="flex items-baseline gap-1 mt-1">
-                  <span className="text-2xl font-bold">{plan.price}</span>
-                  <span className="text-sm text-muted-foreground">{plan.priceNote}</span>
-                </div>
-                <p className="text-xs text-muted-foreground mt-0.5">{plan.perDay}</p>
-              </button>
-            ))}
+            <p className="text-[11px] font-semibold uppercase tracking-[1px] text-wf-gray-500">Chọn gói</p>
+            {PLANS.map((plan) => {
+              const isSelected = selectedPlan === plan.id
+              return (
+                <button
+                  key={plan.id}
+                  onClick={() => setSelectedPlan(plan.id)}
+                  className={cn(
+                    'relative w-full rounded-lg border-2 p-4 text-left transition-all duration-150',
+                    isSelected
+                      ? 'border-wf-blue bg-[rgba(20,110,245,0.04)] shadow-wf-sm'
+                      : 'border-wf-border bg-white hover:border-[#898989]'
+                  )}
+                >
+                  {plan.popular && (
+                    <span className="absolute top-3 right-3 wf-badge" style={{ color: 'var(--wf-blue)' }}>
+                      Phổ biến nhất
+                    </span>
+                  )}
+                  <div className="flex items-center gap-2 mb-1">
+                    <Zap className="h-3.5 w-3.5" style={{ color: plan.accentColor }} />
+                    <p className="text-[13px] font-semibold text-wf-gray-700">{plan.label}</p>
+                  </div>
+                  <div className="flex items-baseline gap-1.5 mt-1.5">
+                    <span className="text-[26px] font-semibold tracking-[-0.03em] text-wf-black">{plan.price}</span>
+                    <span className="text-sm text-wf-gray-300">{plan.priceNote}</span>
+                  </div>
+                  <p className="text-[11px] uppercase tracking-[0.6px] font-semibold text-wf-gray-300 mt-1">{plan.perDay}</p>
+                </button>
+              )
+            })}
           </div>
 
-          {/* Method picker */}
-          <div className="space-y-2">
-            <p className="text-sm font-semibold">Phương thức thanh toán</p>
+          {/* Payment method */}
+          <div className="space-y-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[1px] text-wf-gray-500">Phương thức thanh toán</p>
             <div className="flex gap-3">
               {METHODS.map((m) => (
                 <button
                   key={m.id}
                   onClick={() => setSelectedMethod(m.id)}
                   className={cn(
-                    'flex-1 flex items-center justify-center gap-2 rounded-xl border-2 p-3 font-medium text-sm transition-all',
+                    'flex-1 flex items-center justify-center gap-2 rounded-lg border-2 p-3 text-sm font-semibold transition-all duration-150',
                     selectedMethod === m.id
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border hover:border-primary/40'
+                      ? 'border-wf-blue bg-[rgba(20,110,245,0.04)] text-wf-black'
+                      : 'border-wf-border bg-white text-wf-gray-500 hover:border-[#898989]'
                   )}
                 >
                   <span>{m.logo}</span> {m.label}
@@ -146,35 +169,38 @@ export default function PricingPage() {
             </div>
           </div>
 
+          {/* CTA */}
           <Button
-            className="w-full h-12 text-base gap-2"
+            className="w-full h-11 text-[15px] font-semibold gap-2"
             onClick={handleCheckout}
             disabled={loading || currentPlan !== 'free'}
           >
-            {loading
-              ? <><Loader2 className="h-4 w-4 animate-spin" /> Đang chuyển hướng...</>
-              : currentPlan !== 'free'
-              ? '✓ Bạn đã có gói Premium'
-              : `Thanh toán qua ${selectedMethod === 'momo' ? 'MoMo' : 'VNPay'}`
-            }
+            {loading ? (
+              <><Loader2 className="h-4 w-4 animate-spin" /> Đang chuyển hướng...</>
+            ) : currentPlan !== 'free' ? (
+              '✓ Bạn đã có gói Premium'
+            ) : (
+              `Thanh toán qua ${selectedMethod === 'momo' ? 'MoMo' : 'VNPay'}`
+            )}
           </Button>
-          <p className="text-center text-xs text-muted-foreground">
-            Thanh toán an toàn. Kích hoạt ngay sau khi xác nhận.
+
+          <p className="text-center text-[11px] uppercase tracking-[0.6px] font-semibold text-wf-gray-300">
+            Thanh toán an toàn · Kích hoạt ngay sau khi xác nhận
           </p>
         </div>
 
-        {/* Right — Feature list */}
-        <div className="rounded-2xl border bg-card p-6 space-y-4 h-fit">
-          <p className="font-semibold">Bao gồm tất cả tính năng:</p>
+        {/* Right — feature list card */}
+        <div className="rounded-lg border border-wf-border bg-[#fafafa] p-5 space-y-4">
+          <p className="text-[11px] font-semibold uppercase tracking-[1px] text-wf-gray-500">Bao gồm tất cả</p>
           <ul className="space-y-3">
             {FEATURES.map((f) => (
-              <li key={f} className="flex items-start gap-3 text-sm">
-                <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+              <li key={f} className="flex items-start gap-3 text-sm text-wf-gray-700">
+                <CheckCircle2 className="h-4 w-4 text-wf-blue shrink-0 mt-0.5" />
                 {f}
               </li>
             ))}
           </ul>
-          <div className="rounded-xl bg-muted/50 p-3 text-xs text-muted-foreground">
+          <div className="rounded border border-wf-border bg-white p-3 text-[12px] text-wf-gray-500 leading-relaxed">
             💡 Gói tự động hết hạn sau thời gian. Không tự gia hạn.
           </div>
         </div>

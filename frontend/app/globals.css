@@ -2,50 +2,182 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── Webflow-inspired Design Tokens ─────────────────────────────────────── */
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --ring: 221.2 83.2% 53.3%;
-    --radius: 0.5rem;
+    /* Primary palette */
+    --wf-blue:        #146ef5;
+    --wf-blue-400:    #3b89ff;
+    --wf-blue-300:    #006acc;
+    --wf-blue-hover:  #0055d4;
+
+    /* Near-black & neutral */
+    --wf-black:       #080808;
+    --wf-gray-800:    #222222;
+    --wf-gray-700:    #363636;
+    --wf-gray-500:    #5a5a5a;
+    --wf-gray-300:    #ababab;
+    --wf-border:      #d8d8d8;
+    --wf-border-hover:#898989;
+
+    /* Secondary accents */
+    --wf-purple:  #7a3dff;
+    --wf-pink:    #ed52cb;
+    --wf-green:   #00d722;
+    --wf-orange:  #ff6b00;
+    --wf-yellow:  #ffae13;
+    --wf-red:     #ee1d36;
+
+    /* Shadows — 5-layer cascade */
+    --wf-shadow:
+      rgba(0,0,0,0) 0px 84px 24px,
+      rgba(0,0,0,0.01) 0px 54px 22px,
+      rgba(0,0,0,0.04) 0px 30px 18px,
+      rgba(0,0,0,0.08) 0px 13px 13px,
+      rgba(0,0,0,0.09) 0px 3px 7px;
+
+    /* Radii — sharp, conservative */
+    --wf-radius-sm: 2px;
+    --wf-radius:    4px;
+    --wf-radius-md: 8px;
+
+    /* ── shadcn/ui token mapping ── */
+    --background:          0 0% 100%;
+    --foreground:          0 0% 3%;        /* #080808 near-black */
+
+    --card:                0 0% 100%;
+    --card-foreground:     0 0% 3%;
+
+    --popover:             0 0% 100%;
+    --popover-foreground:  0 0% 3%;
+
+    --primary:             218 92% 51%;    /* #146ef5 Webflow Blue */
+    --primary-foreground:  0 0% 100%;
+
+    --secondary:           0 0% 96%;
+    --secondary-foreground:0 0% 13%;      /* #222222 */
+
+    --muted:               0 0% 96%;
+    --muted-foreground:    0 0% 35%;      /* #5a5a5a */
+
+    --accent:              218 92% 97%;   /* very light blue tint */
+    --accent-foreground:   218 92% 30%;
+
+    --destructive:         354 91% 51%;   /* #ee1d36 */
+    --destructive-foreground: 0 0% 100%;
+
+    --border:              0 0% 85%;      /* #d8d8d8 */
+    --input:               0 0% 85%;
+    --ring:                218 92% 51%;   /* Webflow Blue */
+
+    --radius: 0.25rem;                    /* 4px — WF sharp */
   }
 
+  /* Dark mode — keep near-black base */
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --ring: 224.3 76.3% 48%;
+    --background:          0 0% 5%;
+    --foreground:          0 0% 97%;
+    --card:                0 0% 8%;
+    --card-foreground:     0 0% 97%;
+    --popover:             0 0% 8%;
+    --popover-foreground:  0 0% 97%;
+    --primary:             218 92% 57%;
+    --primary-foreground:  0 0% 100%;
+    --secondary:           0 0% 13%;
+    --secondary-foreground:0 0% 97%;
+    --muted:               0 0% 13%;
+    --muted-foreground:    0 0% 65%;
+    --accent:              218 30% 20%;
+    --accent-foreground:   218 92% 80%;
+    --destructive:         354 70% 45%;
+    --destructive-foreground: 0 0% 97%;
+    --border:              0 0% 18%;
+    --input:               0 0% 18%;
+    --ring:                218 92% 57%;
   }
 }
 
 @layer base {
   * { @apply border-border; }
-  body { @apply bg-background text-foreground; }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-geist-sans), 'Arial', system-ui, sans-serif;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    color: var(--wf-black);
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--wf-black);
+  }
 }
+
+/* ─── Webflow Utility Classes ─────────────────────────────────────────────── */
+@layer utilities {
+  /* Label uppercase style */
+  .wf-label {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--wf-gray-500);
+  }
+
+  /* Button translate hover */
+  .wf-btn-hover {
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .wf-btn-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--wf-shadow);
+  }
+
+  /* Card with WF shadow */
+  .wf-card {
+    border: 1px solid var(--wf-border);
+    border-radius: var(--wf-radius-md);
+    background: #ffffff;
+    box-shadow: var(--wf-shadow);
+  }
+
+  /* Badge blue tint */
+  .wf-badge {
+    background: rgba(20, 110, 245, 0.10);
+    color: var(--wf-blue);
+    border-radius: var(--wf-radius);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+}
+
+/* ─── Animations ──────────────────────────────────────────────────────────── */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+
+@keyframes accordion-down {
+  from { height: 0; }
+  to   { height: var(--radix-accordion-content-height); }
+}
+
+@keyframes accordion-up {
+  from { height: var(--radix-accordion-content-height); }
+  to   { height: 0; }
+}
+
+.animate-fade-in      { animation: fade-in 0.3s ease-out; }
+.animate-slide-in     { animation: slide-in 0.3s ease-out; }
+.animate-accordion-down { animation: accordion-down 0.2s ease-out; }
+.animate-accordion-up   { animation: accordion-up 0.2s ease-out; }
