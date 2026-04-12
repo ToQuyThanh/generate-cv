@@ -2,10 +2,11 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { MoreHorizontal, Pencil, Copy, Trash2, FileText } from 'lucide-react'
+import { MoreHorizontal, Pencil, Copy, Trash2 } from 'lucide-react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 
 import { Button } from '@/components/ui/button'
+import { CVMiniPreview } from '@/components/cv/CVMiniPreview'
 import { formatRelativeTime } from '@/lib/utils'
 import type { CVListItem } from '@/types'
 
@@ -32,28 +33,18 @@ export function CVCard({ cv, onDuplicate, onDelete }: CVCardProps) {
     <div className="group relative rounded-xl border bg-card shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden">
       {/* Thumbnail preview */}
       <div
-        className="h-44 flex flex-col items-center justify-center gap-2 cursor-pointer transition-opacity group-hover:opacity-90"
-        style={{ backgroundColor: cv.color_theme + '18' }}
+        className="h-44 flex items-start justify-center cursor-pointer overflow-hidden bg-white transition-opacity group-hover:opacity-90"
         onClick={() => router.push(`/cv/${cv.id}`)}
         role="button"
         tabIndex={0}
         aria-label={`Mở CV ${cv.title}`}
         onKeyDown={(e) => e.key === 'Enter' && router.push(`/cv/${cv.id}`)}
       >
-        <div
-          className="flex h-10 w-10 items-center justify-center rounded-lg"
-          style={{ backgroundColor: cv.color_theme }}
-        >
-          <FileText className="h-5 w-5 text-white" />
-        </div>
-        <div className="w-16 space-y-1.5 mt-1">
-          <div className="h-1.5 rounded-full opacity-40" style={{ backgroundColor: cv.color_theme }} />
-          <div className="h-1.5 rounded-full w-10 opacity-25" style={{ backgroundColor: cv.color_theme }} />
-          <div className="h-1.5 rounded-full opacity-25" style={{ backgroundColor: cv.color_theme }} />
-        </div>
-        <span className="text-xs text-muted-foreground mt-1">
-          {cv.template_id.replace('template_', '').replace(/_/g, ' ')}
-        </span>
+        <CVMiniPreview
+          sections={cv.sections ?? []}
+          colorTheme={cv.color_theme}
+          containerWidth={280}
+        />
       </div>
 
       {/* Footer */}
