@@ -19,6 +19,8 @@ type CVServiceIface interface {
 	Create(ctx context.Context, userID uuid.UUID, req model.CreateCVRequest) (*model.CVResponse, error)
 	Get(ctx context.Context, userID, cvID uuid.UUID) (*model.CVResponse, error)
 	Update(ctx context.Context, userID, cvID uuid.UUID, req model.UpdateCVRequest) (*model.CVResponse, error)
+	UpdateOverrides(ctx context.Context, userID, cvID uuid.UUID, req model.UpdateCVOverridesRequest) (*model.CVResponse, error)
+	SyncProfile(ctx context.Context, userID, cvID uuid.UUID) (*model.CVResponse, error)
 	Delete(ctx context.Context, userID, cvID uuid.UUID) error
 	Duplicate(ctx context.Context, userID, cvID uuid.UUID) (*model.CVResponse, error)
 }
@@ -64,6 +66,10 @@ func (h *CVHandler) Create(c *gin.Context) {
 
 	resp, err := h.svc.Create(c.Request.Context(), userID, req)
 	if err != nil {
+		if errors.Is(err, service.ErrProfileNotFound) || errors.Is(err, service.ErrProfileForbidden) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "profile not found"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create CV"})
 		return
 	}
@@ -117,6 +123,58 @@ func (h *CVHandler) Update(c *gin.Context) {
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update CV"})
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+// ─── PUT /cvs/:id/overrides ───────────────────────────────────────────────────
+
+func (h *CVHandler) UpdateOverrides(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+
+	cvID, err := parseUUID(c, "id")
+	if err != nil {
+		return
+	}
+
+	var req model.UpdateCVOverridesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	resp, err := h.svc.UpdateOverrides(c.Request.Context(), userID, cvID, req)
+	if err != nil {
+		if isCVNotFound(err) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "cv not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update overrides"})
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+// ─── POST /cvs/:id/sync-profile ───────────────────────────────────────────────
+
+func (h *CVHandler) SyncProfile(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+
+	cvID, err := parseUUID(c, "id")
+	if err != nil {
+		return
+	}
+
+	resp, err := h.svc.SyncProfile(c.Request.Context(), userID, cvID)
+	if err != nil {
+		if isCVNotFound(err) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "cv not found"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
