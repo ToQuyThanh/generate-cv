@@ -18,9 +18,10 @@ type Config struct {
 }
 
 type AppConfig struct {
-	Env     string
-	Port    string
-	Release string // used for Sentry release tracking
+	Env         string
+	Port        string
+	Release     string // used for Sentry release tracking
+	CORSOrigins []string
 }
 
 type DBConfig struct {
@@ -78,6 +79,7 @@ func Load() (*Config, error) {
 	v.SetDefault("APP_ENV", "development")
 	v.SetDefault("APP_PORT", "8080")
 	v.SetDefault("APP_RELEASE", "dev")
+	v.SetDefault("CORS_ORIGINS", "http://localhost:3000")
 	v.SetDefault("DB_HOST", "localhost")
 	v.SetDefault("DB_PORT", "5432")
 	v.SetDefault("DB_USER", "postgres")
@@ -100,11 +102,21 @@ func Load() (*Config, error) {
 	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
+	// Parse CORS_ORIGINS as comma-separated list
+	rawOrigins := v.GetString("CORS_ORIGINS")
+	var corsOrigins []string
+	for _, o := range strings.Split(rawOrigins, ",") {
+		if trimmed := strings.TrimSpace(o); trimmed != "" {
+			corsOrigins = append(corsOrigins, trimmed)
+		}
+	}
+
 	cfg := &Config{
 		App: AppConfig{
-			Env:     v.GetString("APP_ENV"),
-			Port:    v.GetString("APP_PORT"),
-			Release: v.GetString("APP_RELEASE"),
+			Env:         v.GetString("APP_ENV"),
+			Port:        v.GetString("APP_PORT"),
+			Release:     v.GetString("APP_RELEASE"),
+			CORSOrigins: corsOrigins,
 		},
 		DB: DBConfig{
 			Host:     v.GetString("DB_HOST"),

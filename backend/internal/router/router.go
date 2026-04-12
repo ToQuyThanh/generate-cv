@@ -24,6 +24,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool, rdb *redis.Client) *gin.Engine 
 	}
 
 	r := gin.New()
+	r.Use(middleware.CORS(cfg.App.CORSOrigins)) // must be first
 	r.Use(middleware.RequestID())
 	r.Use(middleware.RequestLogger())
 	r.Use(gin.Recovery())
@@ -45,7 +46,6 @@ func New(cfg *config.Config, pool *pgxpool.Pool, rdb *redis.Client) *gin.Engine 
 	mailer      := email.NewNoOpSender()
 	authSvc     := service.NewAuthService(cfg, userRepo, refreshRepo, subRepo, resetRepo, mailer)
 	cvSvc       := service.NewCVService(cvRepo)
-	// subRepo satisfies both SubscriptionRepo (auth — Create) and SubReader (user — GetByUserID)
 	userSvc     := service.NewUserService(userRepo, subRepo)
 	templateSvc := service.NewTemplateService(templateRepo)
 
