@@ -16,7 +16,7 @@ import { authApi, userApi } from '@/lib/api'
 import { useAuthStore } from '@/store'
 
 const schema = z.object({
-  email: z.string().email('Email không hợp lệ'),
+  email:    z.string().email('Email không hợp lệ'),
   password: z.string().min(6, 'Mật khẩu ít nhất 6 ký tự'),
 })
 type FormData = z.infer<typeof schema>
@@ -25,31 +25,18 @@ export default function LoginPage() {
   const router = useRouter()
   const { setAuth, setSubscription, isAuthenticated } = useAuthStore()
 
-  // Nếu đã đăng nhập thì redirect luôn
   useEffect(() => {
     if (isAuthenticated) router.replace('/dashboard')
   }, [isAuthenticated, router])
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-  } = useForm<FormData>({ resolver: zodResolver(schema) })
+  const { register, handleSubmit, formState: { errors, isSubmitting } } =
+    useForm<FormData>({ resolver: zodResolver(schema) })
 
   const onSubmit = async (data: FormData) => {
     try {
-      // Backend trả { access_token, refresh_token, user } — KHÔNG có subscription
       const res = await authApi.login(data)
       setAuth({ user: res.user, access_token: res.access_token, refresh_token: res.refresh_token })
-
-      // Fetch subscription riêng từ /users/me/subscription
-      try {
-        const sub = await userApi.getSubscription()
-        setSubscription(sub)
-      } catch {
-        // Không block login nếu fetch sub lỗi
-      }
-
+      try { const sub = await userApi.getSubscription(); setSubscription(sub) } catch {}
       toast.success('Đăng nhập thành công!')
       router.push('/dashboard')
     } catch {
@@ -58,38 +45,51 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex">
-      <div className="hidden lg:flex lg:w-1/2 bg-primary flex-col justify-between p-12 text-white">
-        <div className="flex items-center gap-2">
-          <FileText className="h-6 w-6" />
-          <span className="text-xl font-bold">GenerateCV</span>
+    <div className="min-h-screen flex bg-white">
+      {/* Left panel — WF Blue brand */}
+      <div className="hidden lg:flex lg:w-1/2 bg-wf-blue flex-col justify-between p-12">
+        {/* Logo */}
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded bg-white/20">
+            <FileText className="h-4 w-4 text-white" />
+          </div>
+          <span className="text-[15px] font-semibold tracking-[-0.02em] text-white">GenerateCV</span>
         </div>
-        <div>
-          <blockquote className="text-2xl font-light leading-relaxed">
-            &ldquo;Tạo CV chuyên nghiệp trong vài phút. AI gợi ý nội dung theo đúng JD của bạn.&rdquo;
-          </blockquote>
-          <p className="mt-4 text-primary-foreground/70 text-sm">
+
+        {/* Quote */}
+        <div className="space-y-4">
+          <p className="text-[28px] font-semibold leading-[1.2] tracking-[-0.03em] text-white">
+            "Tạo CV chuyên nghiệp trong vài phút. AI gợi ý nội dung theo đúng JD của bạn."
+          </p>
+          <p className="text-[13px] text-white/60 uppercase tracking-[1px] font-semibold">
             Hơn 1,000+ người dùng đã tạo CV thành công
           </p>
         </div>
-        <div className="text-primary-foreground/50 text-xs">© 2026 GenerateCV.</div>
+
+        <p className="text-[12px] text-white/40 uppercase tracking-[0.8px] font-semibold">© 2026 GenerateCV</p>
       </div>
 
-      <div className="flex-1 flex items-center justify-center p-8">
+      {/* Right panel */}
+      <div className="flex-1 flex items-center justify-center p-8 bg-white">
         <div className="w-full max-w-sm space-y-6 animate-fade-in">
-          <div className="space-y-1 text-center lg:text-left">
-            <h1 className="text-2xl font-bold tracking-tight">Đăng nhập</h1>
-            <p className="text-sm text-muted-foreground">
+          <div className="space-y-1.5">
+            <h1 className="text-[26px] font-semibold tracking-[-0.03em] text-wf-black">Đăng nhập</h1>
+            <p className="text-sm text-wf-gray-500">
               Chưa có tài khoản?{' '}
-              <Link href="/register" className="text-primary font-medium hover:underline">
+              <Link href="/register" className="text-wf-blue font-semibold hover:text-wf-blue-hover transition-colors">
                 Đăng ký miễn phí
               </Link>
             </p>
           </div>
 
-          <Button type="button" variant="outline" className="w-full"
-            onClick={() => authApi.googleRedirect()}>
-            <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24">
+          {/* Google button */}
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full gap-2.5"
+            onClick={() => authApi.googleRedirect()}
+          >
+            <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
               <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
               <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
@@ -98,30 +98,36 @@ export default function LoginPage() {
             Tiếp tục với Google
           </Button>
 
+          {/* Divider */}
           <div className="relative">
-            <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">Hoặc</span>
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-wf-border" />
+            </div>
+            <div className="relative flex justify-center">
+              <span className="wf-label bg-white px-3">Hoặc</span>
             </div>
           </div>
 
+          {/* Form */}
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <Label htmlFor="email">Email</Label>
               <Input id="email" type="email" placeholder="you@example.com" autoComplete="email" {...register('email')} />
-              {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+              {errors.email && <p className="text-xs text-wf-red">{errors.email.message}</p>}
             </div>
-            <div className="space-y-1">
+
+            <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">Mật khẩu</Label>
-                <Link href="/forgot-password" className="text-xs text-muted-foreground hover:text-primary">
+                <Link href="/forgot-password" className="text-[11px] uppercase tracking-[0.6px] font-semibold text-wf-gray-300 hover:text-wf-blue transition-colors">
                   Quên mật khẩu?
                 </Link>
               </div>
               <Input id="password" type="password" placeholder="••••••••" autoComplete="current-password" {...register('password')} />
-              {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
+              {errors.password && <p className="text-xs text-wf-red">{errors.password.message}</p>}
             </div>
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
+
+            <Button type="submit" className="w-full" disabled={isSubmitting} loading={isSubmitting}>
               {isSubmitting ? 'Đang đăng nhập...' : 'Đăng nhập'}
             </Button>
           </form>

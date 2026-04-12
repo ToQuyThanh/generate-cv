@@ -30,23 +30,14 @@ export function CVCard({ cv, onDuplicate, onDelete, onRename }: CVCardProps) {
   const startEditing = () => {
     setEditing(true)
     setTitle(cv.title)
-    setTimeout(() => {
-      inputRef.current?.focus()
-      inputRef.current?.select()
-    }, 0)
+    setTimeout(() => { inputRef.current?.focus(); inputRef.current?.select() }, 0)
   }
 
-  const cancelEditing = () => {
-    setEditing(false)
-    setTitle(cv.title)
-  }
+  const cancelEditing = () => { setEditing(false); setTitle(cv.title) }
 
   const saveTitle = async () => {
     const trimmed = title.trim()
-    if (!trimmed || trimmed === cv.title) {
-      cancelEditing()
-      return
-    }
+    if (!trimmed || trimmed === cv.title) { cancelEditing(); return }
     setSaving(true)
     try {
       await cvApi.update(cv.id, { title: trimmed })
@@ -76,10 +67,10 @@ export function CVCard({ cv, onDuplicate, onDelete, onRename }: CVCardProps) {
   }
 
   return (
-    <div className="group relative rounded-xl border bg-card shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden">
-      {/* Thumbnail preview */}
+    <div className="group relative rounded-lg border border-wf-border bg-white shadow-wf-sm hover:shadow-wf transition-all duration-200 overflow-hidden">
+      {/* Thumbnail */}
       <div
-        className="h-48 flex items-start justify-center cursor-pointer overflow-hidden bg-white transition-opacity group-hover:opacity-90"
+        className="h-48 flex items-start justify-center cursor-pointer overflow-hidden bg-[#f8f8f8] transition-opacity group-hover:opacity-90"
         onClick={() => router.push(`/cv/${cv.id}`)}
         role="button"
         tabIndex={0}
@@ -94,10 +85,9 @@ export function CVCard({ cv, onDuplicate, onDelete, onRename }: CVCardProps) {
       </div>
 
       {/* Footer */}
-      <div className="p-3 flex items-center justify-between gap-2 border-t">
+      <div className="px-3 py-2.5 flex items-center justify-between gap-2 border-t border-wf-border">
         <div className="min-w-0 flex-1">
           {editing ? (
-            /* Inline rename input */
             <div className="flex items-center gap-1">
               <input
                 ref={inputRef}
@@ -106,35 +96,36 @@ export function CVCard({ cv, onDuplicate, onDelete, onRename }: CVCardProps) {
                 onKeyDown={handleKeyDown}
                 onBlur={saveTitle}
                 disabled={saving}
-                className="w-full text-sm font-medium bg-transparent border-b border-primary outline-none px-0 py-0.5 truncate"
+                className="w-full text-sm font-semibold bg-transparent border-b border-wf-blue outline-none px-0 py-0.5 truncate text-wf-black"
                 maxLength={80}
               />
               <button
                 onMouseDown={(e) => { e.preventDefault(); saveTitle() }}
-                className="shrink-0 text-primary hover:text-primary/80"
+                className="shrink-0 text-wf-blue hover:text-wf-blue-hover"
                 aria-label="Lưu tên"
               >
                 <Check className="h-3.5 w-3.5" />
               </button>
               <button
                 onMouseDown={(e) => { e.preventDefault(); cancelEditing() }}
-                className="shrink-0 text-muted-foreground hover:text-foreground"
+                className="shrink-0 text-wf-gray-300 hover:text-wf-black"
                 aria-label="Huỷ"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
           ) : (
-            /* Tên CV — double-click để đổi tên */
             <p
-              className="text-sm font-medium truncate cursor-pointer hover:text-primary transition-colors"
+              className="text-sm font-semibold truncate cursor-pointer text-wf-black hover:text-wf-blue transition-colors"
               onDoubleClick={startEditing}
               title="Nhấn đúp để đổi tên"
             >
               {cv.title}
             </p>
           )}
-          <p className="text-xs text-muted-foreground mt-0.5">{formatRelativeTime(cv.updated_at)}</p>
+          <p className="text-[11px] uppercase tracking-[0.4px] font-medium text-wf-gray-300 mt-0.5">
+            {formatRelativeTime(cv.updated_at)}
+          </p>
         </div>
 
         <DropdownMenu.Root>
@@ -145,31 +136,31 @@ export function CVCard({ cv, onDuplicate, onDelete, onRename }: CVCardProps) {
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
             <DropdownMenu.Content
-              className="z-50 min-w-36 rounded-lg border bg-popover p-1 shadow-md animate-fade-in"
+              className="z-50 min-w-36 rounded-lg border border-wf-border bg-white p-1 shadow-wf animate-fade-in"
               align="end"
               sideOffset={4}
             >
               <DropdownMenu.Item
-                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm cursor-pointer hover:bg-accent outline-none"
+                className="flex items-center gap-2 rounded px-2.5 py-1.5 text-sm font-medium text-wf-gray-700 cursor-pointer hover:bg-[rgba(20,110,245,0.06)] hover:text-wf-blue outline-none transition-colors"
                 onClick={() => router.push(`/cv/${cv.id}`)}
               >
                 <Pencil className="h-3.5 w-3.5" /> Chỉnh sửa
               </DropdownMenu.Item>
               <DropdownMenu.Item
-                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm cursor-pointer hover:bg-accent outline-none"
+                className="flex items-center gap-2 rounded px-2.5 py-1.5 text-sm font-medium text-wf-gray-700 cursor-pointer hover:bg-[rgba(20,110,245,0.06)] hover:text-wf-blue outline-none transition-colors"
                 onClick={startEditing}
               >
                 <Pencil className="h-3.5 w-3.5" /> Đổi tên
               </DropdownMenu.Item>
               <DropdownMenu.Item
-                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm cursor-pointer hover:bg-accent outline-none"
+                className="flex items-center gap-2 rounded px-2.5 py-1.5 text-sm font-medium text-wf-gray-700 cursor-pointer hover:bg-[rgba(20,110,245,0.06)] hover:text-wf-blue outline-none transition-colors"
                 onClick={() => onDuplicate(cv.id)}
               >
                 <Copy className="h-3.5 w-3.5" /> Nhân đôi
               </DropdownMenu.Item>
-              <DropdownMenu.Separator className="my-1 h-px bg-border" />
+              <div className="my-1 h-px bg-wf-border" />
               <DropdownMenu.Item
-                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm cursor-pointer hover:bg-destructive/10 text-destructive outline-none"
+                className="flex items-center gap-2 rounded px-2.5 py-1.5 text-sm font-medium cursor-pointer hover:bg-[rgba(238,29,54,0.06)] text-wf-red outline-none transition-colors"
                 onClick={handleDelete}
               >
                 <Trash2 className="h-3.5 w-3.5" />

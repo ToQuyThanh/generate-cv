@@ -15,15 +15,10 @@ import { REFRESH_TOKEN_KEY } from '@/lib/api/client'
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/cv/new', label: 'Tạo CV mới', icon: PlusCircle },
+  { href: '/cv/new',    label: 'Tạo CV mới', icon: PlusCircle },
 ]
 
-// ─── Nội dung sidebar (dùng chung cho desktop & mobile drawer) ───────────────
-function SidebarContent({
-  onNavigate,
-}: {
-  onNavigate?: () => void
-}) {
+function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname()
   const router = useRouter()
   const { user, subscription, clearAuth } = useAuthStore()
@@ -43,36 +38,29 @@ function SidebarContent({
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false)
-      }
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
     }
     if (menuOpen) document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [menuOpen])
 
   const initials =
-    user?.full_name
-      ?.split(' ')
-      .slice(-2)
-      .map((n) => n[0])
-      .join('')
-      .toUpperCase() ?? 'U'
+    user?.full_name?.split(' ').slice(-2).map((n) => n[0]).join('').toUpperCase() ?? 'U'
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col bg-white">
       {/* Logo */}
-      <div className="flex items-center gap-2 p-6">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-          <FileText className="h-4 w-4" />
+      <div className="flex items-center gap-2.5 px-5 py-5">
+        <div className="flex h-8 w-8 items-center justify-center rounded bg-wf-blue">
+          <FileText className="h-4 w-4 text-white" />
         </div>
-        <span className="text-lg font-bold">GenerateCV</span>
+        <span className="text-[15px] font-semibold tracking-[-0.02em] text-wf-black">GenerateCV</span>
       </div>
 
-      <Separator />
+      <div className="mx-4 h-px bg-wf-border" />
 
       {/* Nav */}
-      <nav className="flex-1 space-y-1 p-4">
+      <nav className="flex-1 space-y-0.5 p-3 pt-3">
         {navItems.map(({ href, label, icon: Icon }) => {
           const isActive =
             pathname === href ||
@@ -84,93 +72,83 @@ function SidebarContent({
               href={href}
               onClick={onNavigate}
               className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                'flex items-center gap-3 rounded px-3 py-2 text-sm font-medium transition-all duration-150',
                 isActive
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                  ? 'bg-wf-blue text-white shadow-wf-sm'
+                  : 'text-wf-gray-500 hover:bg-[rgba(20,110,245,0.06)] hover:text-wf-blue'
               )}
             >
-              <Icon className="h-4 w-4" />
+              <Icon className="h-4 w-4 shrink-0" />
               {label}
             </Link>
           )
         })}
       </nav>
 
-      <Separator />
+      <div className="mx-4 h-px bg-wf-border" />
 
-      {/* User info + popup menu */}
-      <div className="p-4" ref={menuRef}>
+      {/* User popup */}
+      <div className="p-3" ref={menuRef}>
         <div className="relative">
-          {/* Popup menu - mở lên trên */}
           {menuOpen && (
-            <div className="absolute bottom-full left-0 right-0 mb-2 rounded-lg border bg-card shadow-lg overflow-hidden z-50">
-              <div className="px-3 py-2 border-b">
-                <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+            <div className="absolute bottom-full left-0 right-0 mb-2 rounded-lg border border-wf-border bg-white shadow-wf overflow-hidden z-50">
+              <div className="px-3 py-2 border-b border-wf-border">
+                <p className="text-xs text-wf-gray-300 truncate">{user?.email}</p>
               </div>
-
               <div className="py-1">
                 <Link
                   href="/settings"
                   onClick={() => { setMenuOpen(false); onNavigate?.() }}
-                  className="flex items-center gap-3 px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
+                  className="flex items-center gap-3 px-3 py-2 text-sm text-wf-gray-700 hover:bg-[rgba(20,110,245,0.05)] hover:text-wf-blue transition-colors"
                 >
-                  <Settings className="h-4 w-4" />
-                  Cài đặt
+                  <Settings className="h-4 w-4" /> Cài đặt
                 </Link>
-
                 <Link
                   href="/pricing"
                   onClick={() => { setMenuOpen(false); onNavigate?.() }}
-                  className="flex items-center gap-3 px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
+                  className="flex items-center gap-3 px-3 py-2 text-sm text-wf-gray-700 hover:bg-[rgba(20,110,245,0.05)] hover:text-wf-blue transition-colors"
                 >
                   <CreditCard className="h-4 w-4" />
                   Nâng cấp plan
                   {subscription?.plan === 'free' && (
-                    <Sparkles className="h-3 w-3 text-yellow-500 ml-auto" />
+                    <Sparkles className="h-3 w-3 text-wf-yellow ml-auto" />
                   )}
                 </Link>
-
                 <Link
                   href="/help"
                   onClick={() => { setMenuOpen(false); onNavigate?.() }}
-                  className="flex items-center gap-3 px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
+                  className="flex items-center gap-3 px-3 py-2 text-sm text-wf-gray-700 hover:bg-[rgba(20,110,245,0.05)] hover:text-wf-blue transition-colors"
                 >
-                  <HelpCircle className="h-4 w-4" />
-                  Trợ giúp
+                  <HelpCircle className="h-4 w-4" /> Trợ giúp
                 </Link>
               </div>
-
-              <Separator />
-
+              <div className="h-px bg-wf-border" />
               <div className="py-1">
                 <button
                   onClick={handleLogout}
-                  className="flex w-full items-center gap-3 px-3 py-2 text-sm text-destructive hover:bg-accent transition-colors"
+                  className="flex w-full items-center gap-3 px-3 py-2 text-sm text-wf-red hover:bg-[rgba(238,29,54,0.05)] transition-colors"
                 >
-                  <LogOut className="h-4 w-4" />
-                  Đăng xuất
+                  <LogOut className="h-4 w-4" /> Đăng xuất
                 </button>
               </div>
             </div>
           )}
 
-          {/* Trigger button */}
           <button
             onClick={() => setMenuOpen((v) => !v)}
-            className="flex w-full items-center gap-3 rounded-lg px-2 py-2 hover:bg-accent transition-colors"
+            className="flex w-full items-center gap-3 rounded px-2 py-2 hover:bg-[rgba(20,110,245,0.05)] transition-colors"
           >
-            <Avatar className="h-8 w-8 shrink-0">
+            <Avatar className="h-8 w-8 shrink-0 rounded">
               <AvatarImage src={user?.avatar_url ?? undefined} alt={user?.full_name} />
-              <AvatarFallback className="text-xs">{initials}</AvatarFallback>
+              <AvatarFallback className="rounded text-xs bg-wf-blue text-white font-semibold">{initials}</AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1 text-left">
-              <p className="text-sm font-medium truncate">{user?.full_name}</p>
+              <p className="text-sm font-semibold truncate text-wf-black">{user?.full_name}</p>
               {subscription && (
-                <p className="text-xs text-muted-foreground">{getPlanLabel(subscription.plan)}</p>
+                <p className="text-[11px] text-wf-gray-300 uppercase tracking-[0.5px]">{getPlanLabel(subscription.plan)}</p>
               )}
             </div>
-            <ChevronsUpDown className="h-4 w-4 text-muted-foreground shrink-0" />
+            <ChevronsUpDown className="h-4 w-4 text-wf-gray-300 shrink-0" />
           </button>
         </div>
       </div>
@@ -178,11 +156,9 @@ function SidebarContent({
   )
 }
 
-// ─── Mobile Header (topbar) ──────────────────────────────────────────────────
 export function MobileHeader() {
   const [drawerOpen, setDrawerOpen] = useState(false)
 
-  // Khoá scroll body khi drawer mở
   useEffect(() => {
     document.body.style.overflow = drawerOpen ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
@@ -190,57 +166,51 @@ export function MobileHeader() {
 
   return (
     <>
-      {/* Topbar */}
-      <header className="flex items-center justify-between border-b bg-card px-4 py-3 md:hidden">
+      <header className="flex items-center justify-between border-b border-wf-border bg-white px-4 py-3 md:hidden">
         <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <FileText className="h-3.5 w-3.5" />
+          <div className="flex h-7 w-7 items-center justify-center rounded bg-wf-blue">
+            <FileText className="h-3.5 w-3.5 text-white" />
           </div>
-          <span className="font-bold">GenerateCV</span>
+          <span className="font-semibold text-wf-black tracking-[-0.02em]">GenerateCV</span>
         </div>
         <button
           onClick={() => setDrawerOpen(true)}
-          className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-accent transition-colors"
+          className="flex h-8 w-8 items-center justify-center rounded hover:bg-[rgba(20,110,245,0.06)] transition-colors"
           aria-label="Mở menu"
         >
-          <Menu className="h-5 w-5" />
+          <Menu className="h-5 w-5 text-wf-gray-700" />
         </button>
       </header>
 
-      {/* Overlay */}
       {drawerOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/50 md:hidden"
+          className="fixed inset-0 z-40 bg-black/40 md:hidden"
           onClick={() => setDrawerOpen(false)}
         />
       )}
 
-      {/* Drawer */}
       <div
         className={cn(
-          'fixed left-0 top-0 z-50 h-full w-72 bg-card shadow-xl transition-transform duration-300 md:hidden',
+          'fixed left-0 top-0 z-50 h-full w-72 bg-white shadow-wf transition-transform duration-300 md:hidden',
           drawerOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
-        {/* Nút đóng */}
         <button
           onClick={() => setDrawerOpen(false)}
-          className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-md hover:bg-accent transition-colors"
+          className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded hover:bg-[rgba(0,0,0,0.05)] transition-colors"
           aria-label="Đóng menu"
         >
-          <X className="h-4 w-4" />
+          <X className="h-4 w-4 text-wf-gray-700" />
         </button>
-
         <SidebarContent onNavigate={() => setDrawerOpen(false)} />
       </div>
     </>
   )
 }
 
-// ─── Desktop Sidebar ─────────────────────────────────────────────────────────
 export function Sidebar() {
   return (
-    <aside className="hidden md:flex h-screen w-64 flex-col border-r bg-card">
+    <aside className="hidden md:flex h-screen w-64 flex-col border-r border-wf-border bg-white">
       <SidebarContent />
     </aside>
   )
