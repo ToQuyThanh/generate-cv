@@ -7,6 +7,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	
+	// for test helper only, not used in production code
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -183,13 +188,6 @@ func TestMoMo_IsSuccess_NonZeroResultCode(t *testing.T) {
 // ─────────────────────────────────────────────
 //  Helpers (test-only)
 // ─────────────────────────────────────────────
-
-import (
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
-)
-
 func computeHMACSHA256(secret, data string) string {
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write([]byte(data))
