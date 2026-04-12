@@ -139,6 +139,7 @@ export interface CVListItem {
   title: string
   template_id: string
   color_theme: string
+  sections: CVSection[]
   updated_at: string
   created_at: string
 }
