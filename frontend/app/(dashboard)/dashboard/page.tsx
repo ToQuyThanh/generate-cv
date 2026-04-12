@@ -13,10 +13,9 @@ import type { CVListItem } from '@/types'
 
 export default function DashboardPage() {
   const router = useRouter()
-  const { user, subscription } = useAuthStore()
+  const { user } = useAuthStore()
   const [cvs, setCvs] = useState<CVListItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [creating, setCreating] = useState(false)
 
   const fetchCVs = useCallback(async () => {
     try {
@@ -32,11 +31,6 @@ export default function DashboardPage() {
   useEffect(() => {
     fetchCVs()
   }, [fetchCVs])
-
-  const handleCreateCV = async () => {
-    // Redirect sang trang chọn template thay vì tạo thẳng
-    router.push('/cv/new')
-  }
 
   const handleDuplicate = async (id: string) => {
     try {
@@ -58,6 +52,10 @@ export default function DashboardPage() {
     }
   }
 
+  const handleRename = (id: string, newTitle: string) => {
+    setCvs((prev) => prev.map((c) => c.id === id ? { ...c, title: newTitle } : c))
+  }
+
   const firstName = user?.full_name?.split(' ').at(-1) ?? 'bạn'
 
   return (
@@ -74,24 +72,11 @@ export default function DashboardPage() {
               : 'Bắt đầu tạo CV đầu tiên của bạn ngay hôm nay.'}
           </p>
         </div>
-        <Button onClick={handleCreateCV} disabled={creating} className="gap-2">
+        <Button onClick={() => router.push('/cv/new')} className="gap-2">
           <Plus className="h-4 w-4" />
           Tạo CV mới
         </Button>
       </div>
-
-      {/* Subscription banner cho free user */}
-      {subscription?.plan === 'free' && cvs.length > 0 && (
-        <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium">✨ Nâng cấp để dùng AI & export PDF không watermark</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Chỉ từ 29.000đ/tuần</p>
-          </div>
-          <Button size="sm" onClick={() => router.push('/pricing')}>
-            Nâng cấp ngay
-          </Button>
-        </div>
-      )}
 
       {/* CV Grid */}
       {loading ? (
@@ -99,7 +84,7 @@ export default function DashboardPage() {
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       ) : cvs.length === 0 ? (
-        <EmptyState onCreateCV={handleCreateCV} creating={creating} />
+        <EmptyState onCreateCV={() => router.push('/cv/new')} />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {cvs.map((cv) => (
@@ -108,6 +93,7 @@ export default function DashboardPage() {
               cv={cv}
               onDuplicate={handleDuplicate}
               onDelete={handleDelete}
+              onRename={handleRename}
             />
           ))}
         </div>
@@ -116,7 +102,7 @@ export default function DashboardPage() {
   )
 }
 
-function EmptyState({ onCreateCV, creating }: { onCreateCV: () => void; creating: boolean }) {
+function EmptyState({ onCreateCV }: { onCreateCV: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center rounded-xl border border-dashed bg-muted/30 h-72 space-y-4">
       <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
@@ -126,7 +112,7 @@ function EmptyState({ onCreateCV, creating }: { onCreateCV: () => void; creating
         <p className="font-medium">Chưa có CV nào</p>
         <p className="text-sm text-muted-foreground mt-1">Tạo CV đầu tiên để bắt đầu hành trình</p>
       </div>
-      <Button onClick={onCreateCV} disabled={creating} size="sm">
+      <Button onClick={onCreateCV} size="sm">
         <Plus className="h-4 w-4 mr-1" />
         Tạo CV đầu tiên
       </Button>

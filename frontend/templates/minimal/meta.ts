@@ -6,4 +6,5 @@ export const minimalMeta: TemplateMeta = {
   isPremium: false,
   tags: ['minimal', 'clean', 'two-column'],
   defaultColor: '#059669',
+  description: 'Giao diện tối giản hai cột, để nội dung lên tiếng mà không bị phân tâm.',
 }

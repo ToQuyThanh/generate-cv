@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { ArrowLeft, CheckCircle2, Crown, Loader2, Pipette } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Crown, Loader2, Pipette, LayoutGrid, Star, Columns2, Image, Briefcase, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -15,7 +15,6 @@ import { cn } from '@/lib/utils'
 import { getAllTemplates, getDefaultColor } from '@/templates/registry'
 import type { Template } from '@/types'
 
-// Template "Blank" luôn hiển thị đầu tiên
 const BLANK_TEMPLATE: Template = {
   id: 'blank',
   name: 'Trống',
@@ -32,7 +31,22 @@ const COLOR_PRESETS = [
 
 const PREVIEW_SECTIONS = getBlankSections()
 
-type FilterType = 'all' | 'free' | 'premium'
+// Các tab filter giống ảnh mẫu
+const FILTER_TABS = [
+  { key: 'all',           label: 'Tất cả',      icon: LayoutGrid },
+  { key: 'simple',        label: 'Đơn giản',    icon: Star },
+  { key: 'modern',        label: 'Hiện đại',    icon: Briefcase },
+  { key: 'single-column', label: 'Một cột',     icon: Columns2 },
+  { key: 'with-photo',    label: 'Có ảnh',      icon: Image },
+  { key: 'professional',  label: 'Chuyên nghiệp', icon: Briefcase },
+  { key: 'two-column',    label: 'Hai cột',     icon: Columns2 },
+  { key: 'premium',       label: 'Premium',     icon: Crown },
+] as const
+
+type FilterKey = typeof FILTER_TABS[number]['key']
+
+// Mô tả template blank
+const BLANK_DESCRIPTION = 'Bắt đầu từ tờ giấy trắng, tự do thiết kế theo phong cách riêng.'
 
 export default function NewCVPage() {
   const router = useRouter()
@@ -40,21 +54,21 @@ export default function NewCVPage() {
   const { subscription } = useAuthStore()
 
   const [templates, setTemplates] = useState<Template[]>([BLANK_TEMPLATE])
+  const [descriptions, setDescriptions] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
-  const [filter, setFilter] = useState<FilterType>('all')
+  const [activeFilter, setActiveFilter] = useState<FilterKey>('all')
 
-  // Đọc template từ query string nếu có (khi redirect từ trang khác)
   const initialTemplate = searchParams.get('template') ?? 'blank'
   const [selectedTemplate, setSelectedTemplate] = useState<string>(initialTemplate)
   const [selectedColor, setSelectedColor] = useState(
     initialTemplate !== 'blank' ? getDefaultColor(initialTemplate) : '#1a56db'
   )
   const colorInputRef = useRef<HTMLInputElement>(null)
+  const tabsRef = useRef<HTMLDivElement>(null)
 
   const isPaid = subscription?.plan !== 'free'
 
-  // Load template list: local registry + merge is_premium từ API
   useEffect(() => {
     const localTemplates = getAllTemplates().map((entry) => ({
       id: entry.meta.id,
@@ -63,7 +77,15 @@ export default function NewCVPage() {
       preview_url: null,
       is_premium: entry.meta.isPremium,
       tags: entry.meta.tags,
-    } satisfies Template))
+      description: entry.meta.description,
+    } satisfies Template & { description?: string }))
+
+    // Lưu descriptions từ local registry
+    const descMap: Record<string, string> = {}
+    getAllTemplates().forEach((entry) => {
+      if (entry.meta.description) descMap[entry.meta.id] = entry.meta.description
+    })
+    setDescriptions(descMap)
 
     apiClient
       .get<{ data: Template[] }>('/templates')
@@ -106,9 +128,9 @@ export default function NewCVPage() {
   }
 
   const visibleTemplates = templates.filter((t) => {
-    if (filter === 'free') return !t.is_premium
-    if (filter === 'premium') return t.is_premium
-    return true
+    if (activeFilter === 'all') return true
+    if (activeFilter === 'premium') return t.is_premium
+    return t.tags.includes(activeFilter)
   })
 
   const selectedEntry = templates.find((t) => t.id === selectedTemplate)
@@ -155,8 +177,6 @@ export default function NewCVPage() {
                 aria-label={`Chọn màu ${color}`}
               />
             ))}
-
-            {/* Custom color picker */}
             <div className="relative">
               <button
                 onClick={() => colorInputRef.current?.click()}
@@ -184,7 +204,6 @@ export default function NewCVPage() {
                 aria-hidden
               />
             </div>
-
             {!COLOR_PRESETS.includes(selectedColor) && (
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <div className="h-4 w-4 rounded-full border" style={{ backgroundColor: selectedColor }} />
@@ -194,105 +213,118 @@ export default function NewCVPage() {
           </div>
         </section>
 
-        {/* ── Template grid ─────────────────────────────────────────────── */}
+        {/* ── Template section ──────────────────────────────────────────── */}
         <section>
-          <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-            <h2 className="text-sm font-semibold">Chọn template</h2>
+          <h2 className="text-sm font-semibold mb-4">Chọn template</h2>
 
-            {/* Filter pills */}
-            <div className="flex rounded-lg border p-1 gap-1">
-              {(['all', 'free', 'premium'] as FilterType[]).map((f) => (
-                <button
-                  key={f}
-                  onClick={() => setFilter(f)}
-                  className={cn(
-                    'px-3 py-1 rounded-md text-xs font-medium transition-colors',
-                    filter === f
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:bg-accent'
-                  )}
-                >
-                  {f === 'all' ? 'Tất cả' : f === 'free' ? 'Miễn phí' : 'Premium'}
-                </button>
-              ))}
-            </div>
+          {/* Filter tabs — scrollable ngang */}
+          <div
+            ref={tabsRef}
+            className="flex gap-1 overflow-x-auto pb-2 mb-6 scrollbar-none border-b"
+          >
+            {FILTER_TABS.map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                onClick={() => setActiveFilter(key)}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-px',
+                  activeFilter === key
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+                )}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {label}
+              </button>
+            ))}
           </div>
 
+          {/* Template grid */}
           {loading ? (
             <div className="flex justify-center py-16">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6">
               {visibleTemplates.map((tpl) => {
                 const isBlank = tpl.id === 'blank'
                 const locked = tpl.is_premium && !isPaid
                 const isSelected = selectedTemplate === tpl.id
+                const desc = isBlank ? BLANK_DESCRIPTION : descriptions[tpl.id]
 
                 return (
-                  <button
-                    key={tpl.id}
-                    onClick={() => {
-                      if (locked) {
-                        toast.info('Nâng cấp để dùng template premium')
-                        return
-                      }
-                      handleSelectTemplate(tpl.id)
-                    }}
-                    className={cn(
-                      'relative rounded-xl border-2 overflow-hidden text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
-                      isSelected
-                        ? 'border-primary shadow-md'
-                        : 'border-border hover:border-primary/40',
-                      locked && 'opacity-60'
-                    )}
-                  >
-                    {/* Thumbnail */}
-                    <div className="h-44 overflow-hidden bg-white">
-                      {isBlank ? (
-                        <BlankThumbnail />
-                      ) : (
-                        <CVMiniPreview
-                          sections={PREVIEW_SECTIONS}
-                          colorTheme={selectedColor}
-                          templateId={tpl.id}
-                          containerWidth={210}
-                          gap={0}
-                        />
+                  <div key={tpl.id} className="flex flex-col gap-2">
+                    {/* Card */}
+                    <button
+                      onClick={() => {
+                        if (locked) {
+                          toast.info('Nâng cấp để dùng template premium')
+                          return
+                        }
+                        handleSelectTemplate(tpl.id)
+                      }}
+                      className={cn(
+                        'relative rounded-xl border-2 overflow-hidden text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary w-full',
+                        isSelected
+                          ? 'border-primary shadow-md'
+                          : 'border-border hover:border-primary/40',
+                        locked && 'opacity-60'
                       )}
-                    </div>
-
-                    {/* Footer */}
-                    <div className="p-2.5 flex items-center justify-between gap-1 border-t bg-card">
-                      <span className="text-xs font-medium truncate">{tpl.name}</span>
-                      {isBlank ? (
-                        <Badge variant="secondary" className="text-xs shrink-0">Mặc định</Badge>
-                      ) : tpl.is_premium ? (
-                        <Badge variant="outline" className="gap-1 text-amber-600 border-amber-300 shrink-0 text-xs">
-                          <Crown className="h-2.5 w-2.5" /> Pro
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-xs shrink-0 text-green-700 border-green-300">Free</Badge>
-                      )}
-                    </div>
-
-                    {/* Selected checkmark */}
-                    {isSelected && (
-                      <div className="absolute top-2 right-2">
-                        <CheckCircle2 className="h-5 w-5 text-primary fill-background" />
+                    >
+                      {/* Thumbnail */}
+                      <div className="h-48 overflow-hidden bg-white">
+                        {isBlank ? (
+                          <BlankThumbnail />
+                        ) : (
+                          <CVMiniPreview
+                            sections={PREVIEW_SECTIONS}
+                            colorTheme={selectedColor}
+                            templateId={tpl.id}
+                            containerWidth={210}
+                            gap={0}
+                          />
+                        )}
                       </div>
-                    )}
 
-                    {/* Lock overlay */}
-                    {locked && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-background/60 backdrop-blur-[1px]">
-                        <div className="flex flex-col items-center gap-1">
-                          <Crown className="h-5 w-5 text-amber-500" />
-                          <span className="text-xs font-medium text-amber-600">Premium</span>
+                      {/* Footer */}
+                      <div className="px-2.5 py-2 flex items-center justify-between gap-1 border-t bg-card">
+                        <span className="text-xs font-medium truncate">{tpl.name}</span>
+                        {isBlank ? (
+                          <Badge variant="secondary" className="text-xs shrink-0">Mặc định</Badge>
+                        ) : tpl.is_premium ? (
+                          <Badge variant="outline" className="gap-1 text-amber-600 border-amber-300 shrink-0 text-xs">
+                            <Crown className="h-2.5 w-2.5" /> Pro
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-xs shrink-0 text-green-700 border-green-300">Free</Badge>
+                        )}
+                      </div>
+
+                      {/* Selected checkmark */}
+                      {isSelected && (
+                        <div className="absolute top-2 right-2">
+                          <CheckCircle2 className="h-5 w-5 text-primary fill-background" />
                         </div>
-                      </div>
+                      )}
+
+                      {/* Lock overlay */}
+                      {locked && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-background/60 backdrop-blur-[1px]">
+                          <div className="flex flex-col items-center gap-1">
+                            <Crown className="h-5 w-5 text-amber-500" />
+                            <span className="text-xs font-medium text-amber-600">Premium</span>
+                          </div>
+                        </div>
+                      )}
+                    </button>
+
+                    {/* Description bên dưới card */}
+                    {desc && (
+                      <p className="text-xs text-muted-foreground leading-relaxed px-0.5">
+                        {desc}
+                      </p>
                     )}
-                  </button>
+                  </div>
                 )
               })}
             </div>
@@ -300,7 +332,7 @@ export default function NewCVPage() {
 
           {!loading && visibleTemplates.length === 0 && (
             <div className="text-center py-16 text-muted-foreground text-sm">
-              Không có template nào
+              Không có template nào trong danh mục này
             </div>
           )}
         </section>
