@@ -185,11 +185,17 @@ func getUserIDFromCtx(c *gin.Context) (uuid.UUID, bool) {
 }
 
 func queryInt32(c *gin.Context, key string, defaultVal int32) int32 {
-	var v int32
-	if err := c.ShouldBindQuery(struct {
-		Val int32 `form:"` + key + `"`
-	}{}); err != nil || v == 0 {
-		return defaultVal
-	}
-	return v
+    // Lấy string từ query
+    vStr := c.DefaultQuery(key, "")
+    if vStr == "" {
+        return defaultVal
+    }
+
+    // Chuyển đổi sang int32
+    var v int32
+    _, err := fmt.Sscanf(vStr, "%d", &v)
+    if err != nil {
+        return defaultVal
+    }
+    return v
 }
