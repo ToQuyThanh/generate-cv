@@ -1,8 +1,7 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { PaywallModal } from '@/components/payment/PaywallModal'
 
-// Mock useRouter
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
 }))
@@ -18,14 +17,21 @@ describe('PaywallModal', () => {
     expect(screen.getByText('Nâng cấp tài khoản')).toBeInTheDocument()
     expect(screen.getByText('Xuất PDF không watermark')).toBeInTheDocument()
     expect(screen.getByText('Gợi ý AI không giới hạn')).toBeInTheDocument()
-    expect(screen.getByText(/29.000đ/)).toBeInTheDocument()
+  })
+
+  it('hiển thị giá đúng: 49.000đ/tuần', () => {
+    render(<PaywallModal open={true} onClose={() => {}} />)
+    expect(screen.getByText(/49\.000đ\/tuần/)).toBeInTheDocument()
+  })
+
+  it('KHÔNG hiển thị giá cũ 29.000đ', () => {
+    render(<PaywallModal open={true} onClose={() => {}} />)
+    expect(screen.queryByText(/29\.000/)).not.toBeInTheDocument()
   })
 
   it('gọi onClose khi bấm nút X', () => {
     const onClose = vi.fn()
     render(<PaywallModal open={true} onClose={onClose} />)
-    const closeBtn = screen.getByRole('button', { name: '' }) // X button
-    // Tìm button đầu tiên (X)
     const allBtns = screen.getAllByRole('button')
     fireEvent.click(allBtns[0]) // X button
     expect(onClose).toHaveBeenCalledOnce()
@@ -38,8 +44,12 @@ describe('PaywallModal', () => {
     expect(onClose).toHaveBeenCalledOnce()
   })
 
-  it('có nút "Xem các gói"', () => {
-    render(<PaywallModal open={true} onClose={() => {}} />)
-    expect(screen.getByText('Xem các gói')).toBeInTheDocument()
+  it('có nút "Xem các gói" navigate đến /pricing', () => {
+    const push = vi.fn()
+    vi.mocked(require('next/navigation').useRouter).mockReturnValue({ push })
+    const onClose = vi.fn()
+    render(<PaywallModal open={true} onClose={onClose} />)
+    fireEvent.click(screen.getByText('Xem các gói'))
+    expect(onClose).toHaveBeenCalled()
   })
 })
