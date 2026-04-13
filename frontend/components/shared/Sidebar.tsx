@@ -48,8 +48,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
   const handleLogout = async () => {
     try {
-      const rt = localStorage.getItem(REFRESH_TOKEN_KEY) ?? ''
-      await authApi.logout(rt)
+      await authApi.logout()
     } finally {
       clearAuth()
       toast.success('Đã đăng xuất')
