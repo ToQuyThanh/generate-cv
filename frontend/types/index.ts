@@ -130,6 +130,9 @@ export interface CV {
   template_id: string
   color_theme: string
   sections: CVSection[]
+  profile_id?: string | null
+  profile_snapshot?: Record<string, unknown> | null
+  overrides?: Record<string, unknown>
   created_at: string
   updated_at: string
 }
@@ -140,6 +143,7 @@ export interface CVListItem {
   template_id: string
   color_theme: string
   sections: CVSection[]
+  profile_id?: string | null
   updated_at: string
   created_at: string
 }
@@ -150,6 +154,7 @@ export interface CreateCVRequest {
   template_id: string
   color_theme: string
   sections?: CVSection[]
+  profile_id?: string | null
 }
 
 export interface UpdateCVRequest {
@@ -157,6 +162,187 @@ export interface UpdateCVRequest {
   template_id?: string
   color_theme?: string
   sections?: CVSection[]
+}
+
+export interface UpdateCVOverridesRequest {
+  overrides: Record<string, unknown>
+}
+
+// ─── Profile System ────────────────────────────────────────────────────────
+
+export type ProfileSectionType =
+  | 'work_experience'
+  | 'education'
+  | 'skills'
+  | 'projects'
+  | 'certifications'
+  | 'languages'
+  | 'custom'
+
+// ─── Profile item JSONB schemas ─────────────────────────────────────────────
+
+export interface WorkExperienceItemData {
+  company: string
+  position: string
+  location?: string
+  start_date: string
+  end_date?: string | null
+  is_current: boolean
+  description: string
+  achievements: string[]
+  tech_stack?: string[]
+}
+
+export interface EducationItemData {
+  school: string
+  degree: string
+  field: string
+  start_date: string
+  end_date?: string
+  gpa?: string
+  activities?: string
+}
+
+export interface SkillsItemData {
+  group_name: string
+  skills: string[]
+  level?: 'beginner' | 'intermediate' | 'advanced' | 'expert'
+}
+
+export interface ProjectItemData {
+  name: string
+  role?: string
+  url?: string
+  start_date?: string
+  end_date?: string
+  description: string
+  tech_stack: string[]
+  highlights: string[]
+}
+
+export interface CertificationItemData {
+  name: string
+  issuer: string
+  date: string
+  url?: string
+  credential_id?: string
+}
+
+export type ProfileItemData =
+  | WorkExperienceItemData
+  | EducationItemData
+  | SkillsItemData
+  | ProjectItemData
+  | CertificationItemData
+  | Record<string, unknown>
+
+// ─── Core profile models ────────────────────────────────────────────────────
+
+export interface ProfileItem {
+  id: string
+  section_id: string
+  position: number
+  is_visible: boolean
+  data: ProfileItemData
+}
+
+export interface ProfileSection {
+  id: string
+  profile_id: string
+  type: ProfileSectionType
+  title: string
+  position: number
+  is_visible: boolean
+  items: ProfileItem[]
+}
+
+export interface CVProfile {
+  id: string
+  user_id: string
+  name: string
+  role_target?: string
+  summary?: string
+  // Personal info
+  full_name?: string
+  email?: string
+  phone?: string
+  location?: string
+  linkedin_url?: string
+  github_url?: string
+  website_url?: string
+  avatar_url?: string
+  // Meta
+  is_default: boolean
+  sections?: ProfileSection[]
+  created_at: string
+  updated_at: string
+}
+
+export interface CVProfileListItem {
+  id: string
+  name: string
+  role_target?: string
+  full_name?: string
+  email?: string
+  is_default: boolean
+  section_count?: number
+  created_at: string
+  updated_at: string
+}
+
+// ─── Profile API request types ──────────────────────────────────────────────
+
+export interface CreateProfileRequest {
+  name: string
+  role_target?: string
+  summary?: string
+  full_name?: string
+  email?: string
+  phone?: string
+  location?: string
+  linkedin_url?: string
+  github_url?: string
+  website_url?: string
+}
+
+export interface UpdateProfileRequest {
+  name?: string
+  role_target?: string
+  summary?: string
+  full_name?: string
+  email?: string
+  phone?: string
+  location?: string
+  linkedin_url?: string
+  github_url?: string
+  website_url?: string
+}
+
+export interface CreateSectionRequest {
+  type: ProfileSectionType
+  title: string
+  position?: number
+}
+
+export interface UpdateSectionRequest {
+  title?: string
+  is_visible?: boolean
+  position?: number
+}
+
+export interface ReorderRequest {
+  order: string[]
+}
+
+export interface CreateItemRequest {
+  data: ProfileItemData
+  position?: number
+}
+
+export interface UpdateItemRequest {
+  data?: Partial<ProfileItemData>
+  is_visible?: boolean
+  position?: number
 }
 
 // ─── Template ──────────────────────────────────────────────────────────────
