@@ -29,7 +29,7 @@ const emptyItem = (): ExperienceItem => ({
 export function ExperienceSection({ section }: Props) {
   const { updateSection, cvData } = useEditorStore()
   const { subscription } = useAuthStore()
-  const data = section.data as ExperienceData
+  const data = section.data as unknown as ExperienceData
   const items: ExperienceItem[] = data?.items ?? []
   const [expandedId, setExpandedId] = useState<string | null>(items[0]?.id ?? null)
   const [suggestingId, setSuggestingId] = useState<string | null>(null)
@@ -49,8 +49,6 @@ export function ExperienceSection({ section }: Props) {
 
   const patchItem = (id: string, patch: Partial<ExperienceItem>) =>
     save(items.map((i) => (i.id === id ? { ...i, ...patch } : i)))
-
-  // ── Tag helpers ──────────────────────────────────────────────────────────
 
   const addTag = (itemId: string, field: 'tech_stack' | 'achievements', value: string) => {
     const trimmed = value.trim()
@@ -81,8 +79,6 @@ export function ExperienceSection({ section }: Props) {
     }
   }
 
-  // ── AI ───────────────────────────────────────────────────────────────────
-
   const handleAISuggest = async (item: ExperienceItem) => {
     if (!isPaid) { toast.info('Nâng cấp gói để dùng AI'); return }
     if (!cvData) return
@@ -107,7 +103,6 @@ export function ExperienceSection({ section }: Props) {
     <div className="space-y-3">
       {items.map((item) => (
         <div key={item.id} className="rounded-lg border overflow-hidden">
-          {/* Item header */}
           <div
             className="flex items-center justify-between px-3 py-2 bg-muted/30 cursor-pointer"
             onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}
@@ -135,7 +130,6 @@ export function ExperienceSection({ section }: Props) {
 
           {expandedId === item.id && (
             <div className="p-3 space-y-3">
-              {/* Row 1: company + position */}
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Công ty</Label>
@@ -149,7 +143,6 @@ export function ExperienceSection({ section }: Props) {
                 </div>
               </div>
 
-              {/* Row 2: location */}
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Địa điểm (tùy chọn)</Label>
                 <Input className="h-8 text-sm" placeholder="Hà Nội / Remote / TP.HCM"
@@ -157,7 +150,6 @@ export function ExperienceSection({ section }: Props) {
                   onChange={(e) => patchItem(item.id, { location: e.target.value })} />
               </div>
 
-              {/* Row 3: dates */}
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Từ tháng</Label>
@@ -177,7 +169,6 @@ export function ExperienceSection({ section }: Props) {
                 Hiện đang làm việc tại đây
               </label>
 
-              {/* Description */}
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs text-muted-foreground">Mô tả công việc</Label>
@@ -197,10 +188,9 @@ export function ExperienceSection({ section }: Props) {
                 />
               </div>
 
-              {/* Achievements */}
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">
-                  Thành tích nổi bật (mỗi dòng 1 thành tích)
+                  Thành tích nổi bật (Enter để thêm)
                 </Label>
                 {(item.achievements ?? []).length > 0 && (
                   <div className="flex flex-wrap gap-1 mb-1">
@@ -216,8 +206,7 @@ export function ExperienceSection({ section }: Props) {
                     ))}
                   </div>
                 )}
-                <Input
-                  className="h-8 text-sm"
+                <Input className="h-8 text-sm"
                   placeholder="Tăng 30% hiệu suất API... (Enter để thêm)"
                   value={tagInputs[`${item.id}-achievements`] ?? ''}
                   onChange={(e) => setTagInputs((p) => ({ ...p, [`${item.id}-achievements`]: e.target.value }))}
@@ -226,10 +215,9 @@ export function ExperienceSection({ section }: Props) {
                 />
               </div>
 
-              {/* Tech stack */}
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">
-                  Công nghệ sử dụng (Enter hoặc dấu phẩy để thêm)
+                  Công nghệ (Enter hoặc dấu phẩy để thêm)
                 </Label>
                 {(item.tech_stack ?? []).length > 0 && (
                   <div className="flex flex-wrap gap-1 mb-1">
@@ -245,8 +233,7 @@ export function ExperienceSection({ section }: Props) {
                     ))}
                   </div>
                 )}
-                <Input
-                  className="h-8 text-sm"
+                <Input className="h-8 text-sm"
                   placeholder="Go, PostgreSQL, Docker... (Enter để thêm)"
                   value={tagInputs[`${item.id}-tech_stack`] ?? ''}
                   onChange={(e) => setTagInputs((p) => ({ ...p, [`${item.id}-tech_stack`]: e.target.value }))}

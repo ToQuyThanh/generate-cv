@@ -12,11 +12,11 @@ import type { CVSection, LanguagesData, LanguageItem, LanguageLevel } from '@/ty
 interface Props { section: CVSection }
 
 const LEVEL_OPTIONS: { value: LanguageLevel; label: string; color: string }[] = [
-  { value: 'basic',          label: 'Cơ bản',       color: 'bg-gray-200 text-gray-700' },
-  { value: 'conversational', label: 'Giao tiếp',    color: 'bg-blue-100 text-blue-700' },
+  { value: 'basic',          label: 'Cơ bản',        color: 'bg-gray-200 text-gray-700' },
+  { value: 'conversational', label: 'Giao tiếp',     color: 'bg-blue-100 text-blue-700' },
   { value: 'professional',   label: 'Chuyên nghiệp', color: 'bg-indigo-100 text-indigo-700' },
-  { value: 'fluent',         label: 'Thành thạo',   color: 'bg-green-100 text-green-700' },
-  { value: 'native',         label: 'Bản ngữ',      color: 'bg-amber-100 text-amber-700' },
+  { value: 'fluent',         label: 'Thành thạo',    color: 'bg-green-100 text-green-700' },
+  { value: 'native',         label: 'Bản ngữ',       color: 'bg-amber-100 text-amber-700' },
 ]
 
 const emptyItem = (): LanguageItem => ({
@@ -27,7 +27,7 @@ const emptyItem = (): LanguageItem => ({
 
 export function LanguagesSection({ section }: Props) {
   const { updateSection } = useEditorStore()
-  const data = section.data as LanguagesData
+  const data = section.data as unknown as LanguagesData
   const items: LanguageItem[] = data?.items ?? []
 
   const save = (updated: LanguageItem[]) =>
@@ -49,15 +49,12 @@ export function LanguagesSection({ section }: Props) {
 
       {items.map((item) => (
         <div key={item.id} className="flex items-center gap-2">
-          {/* Language name */}
           <Input
             className="h-8 text-sm flex-1"
             placeholder="Tiếng Anh, Tiếng Nhật..."
             value={item.language}
             onChange={(e) => patchItem(item.id, { language: e.target.value })}
           />
-
-          {/* Level selector */}
           <div className="flex items-center gap-1 shrink-0">
             {LEVEL_OPTIONS.map((opt) => (
               <button
@@ -75,7 +72,6 @@ export function LanguagesSection({ section }: Props) {
               </button>
             ))}
           </div>
-
           <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive shrink-0"
             onClick={() => removeItem(item.id)}>
             <Trash2 className="h-3.5 w-3.5" />

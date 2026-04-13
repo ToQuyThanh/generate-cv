@@ -21,7 +21,7 @@ const emptySkill = (): SkillItem => ({
 
 export function SkillsSection({ section }: Props) {
   const { updateSection } = useEditorStore()
-  const data = section.data as SkillsData
+  const data = section.data as unknown as SkillsData
   const items: SkillItem[] = data?.items ?? []
 
   const save = (updated: SkillItem[]) =>
@@ -42,7 +42,6 @@ export function SkillsSection({ section }: Props) {
             value={item.name}
             onChange={(e) => patchItem(item.id, { name: e.target.value })}
           />
-          {/* Level dots */}
           <div className="flex items-center gap-1 shrink-0">
             {LEVELS.map((lvl) => (
               <button
