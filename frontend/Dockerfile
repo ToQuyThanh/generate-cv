@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# Stage 1 — Dependencies
+# Stage 1 — Dependencies (ALL — bao gồm devDeps vì Next.js build cần tailwindcss)
 # ─────────────────────────────────────────────────────────────────────────────
 FROM node:20-alpine AS deps
 
@@ -8,7 +8,9 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --ignore-scripts
+# Cài TẤT CẢ deps (kể cả devDeps) — tailwindcss, postcss, autoprefixer
+# là devDependencies nhưng Next.js build bắt buộc phải có
+RUN npm ci --ignore-scripts
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Stage 2 — Build
@@ -21,7 +23,6 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Build-time env vars (non-secret public vars only)
-# Pass actual values via --build-arg or docker-compose build.args
 ARG NEXT_PUBLIC_API_URL=http://localhost:8080
 ARG NEXT_PUBLIC_APP_URL=http://localhost:3000
 ARG NEXT_PUBLIC_GOOGLE_CLIENT_ID=""
@@ -29,14 +30,13 @@ ARG NEXT_PUBLIC_GOOGLE_CLIENT_ID=""
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 ENV NEXT_PUBLIC_GOOGLE_CLIENT_ID=$NEXT_PUBLIC_GOOGLE_CLIENT_ID
-
-# Disable Next.js telemetry during build
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
 
 RUN npm run build
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Stage 3 — Runtime
+# Stage 3 — Runtime (chỉ copy standalone output — không cần node_modules đầy)
 # ─────────────────────────────────────────────────────────────────────────────
 FROM node:20-alpine AS runner
 
@@ -47,10 +47,10 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Create non-root user
+# Non-root user
 RUN addgroup -g 1001 nodejs && adduser -u 1001 -G nodejs -s /bin/sh -D nextjs
 
-# Copy only what Next.js standalone needs
+# standalone output tự bundle những gì cần — không cần copy node_modules
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
