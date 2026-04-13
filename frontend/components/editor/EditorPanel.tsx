@@ -6,16 +6,22 @@ import { SummarySection } from './sections/SummarySection'
 import { ExperienceSection } from './sections/ExperienceSection'
 import { EducationSection } from './sections/EducationSection'
 import { SkillsSection } from './sections/SkillsSection'
+import { ProjectsSection } from './sections/ProjectsSection'
+import { CertificationsSection } from './sections/CertificationsSection'
+import { LanguagesSection } from './sections/LanguagesSection'
 import type { CVSection } from '@/types'
 import { Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 const SECTION_MAP: Record<string, React.ComponentType<{ section: CVSection }>> = {
-  personal: PersonalSection,
-  summary: SummarySection,
-  experience: ExperienceSection,
-  education: EducationSection,
-  skills: SkillsSection,
+  personal:       PersonalSection,
+  summary:        SummarySection,
+  experience:     ExperienceSection,
+  education:      EducationSection,
+  skills:         SkillsSection,
+  projects:       ProjectsSection,
+  certifications: CertificationsSection,
+  languages:      LanguagesSection,
 }
 
 export function EditorPanel() {

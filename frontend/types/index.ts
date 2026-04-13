@@ -79,10 +79,13 @@ export interface ExperienceItem {
   id: string
   company: string
   position: string
+  location?: string
   start_date: string
   end_date: string
   is_current: boolean
   description: string
+  achievements?: string[]
+  tech_stack?: string[]
 }
 
 export interface ExperienceData {
@@ -97,7 +100,7 @@ export interface EducationItem {
   start_date: string
   end_date: string
   gpa?: string
-  description?: string
+  description?: string   // activities/notes
 }
 
 export interface EducationData {
@@ -108,6 +111,58 @@ export interface SkillItem {
   id: string
   name: string
   level: 1 | 2 | 3 | 4 | 5
+}
+
+// ─── Projects ─────────────────────────────────────────────────────────────
+
+export interface ProjectItem {
+  id: string
+  name: string
+  role?: string
+  url?: string
+  start_date?: string
+  end_date?: string
+  description: string
+  tech_stack?: string[]
+  highlights?: string[]
+}
+
+export interface ProjectsData {
+  items: ProjectItem[]
+}
+
+// ─── Certifications ───────────────────────────────────────────────────────
+
+export interface CertificationItem {
+  id: string
+  name: string
+  issuer: string
+  date: string
+  url?: string
+  credential_id?: string
+}
+
+export interface CertificationsData {
+  items: CertificationItem[]
+}
+
+// ─── Languages ────────────────────────────────────────────────────────────
+
+export type LanguageLevel =
+  | 'basic'
+  | 'conversational'
+  | 'professional'
+  | 'fluent'
+  | 'native'
+
+export interface LanguageItem {
+  id: string
+  language: string
+  level: LanguageLevel
+}
+
+export interface LanguagesData {
+  items: LanguageItem[]
 }
 
 export interface SkillsData {

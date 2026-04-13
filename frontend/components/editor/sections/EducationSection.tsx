@@ -99,6 +99,16 @@ export function EducationSection({ section }: Props) {
                     onChange={(e) => patchItem(item.id, { gpa: e.target.value })} />
                 </div>
               </div>
+              {/* Activities / notes */}
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Hoạt động / ghi chú (tùy chọn)</Label>
+                <textarea
+                  className="w-full min-h-[64px] resize-none rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="Hoạt động ngoại khóa, đề tài luận văn..."
+                  value={item.description ?? ''}
+                  onChange={(e) => patchItem(item.id, { description: e.target.value })}
+                />
+              </div>
             </div>
           )}
         </div>

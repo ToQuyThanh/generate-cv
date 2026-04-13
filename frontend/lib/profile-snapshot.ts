@@ -18,7 +18,7 @@
  * { id, type, title, visible, order, data }
  */
 
-import type { CVSection, SectionType } from '@/types'
+import type { CVSection, SectionType, LanguageLevel } from '@/types'
 
 // ─── Snapshot types (mirror backend buildProfileSnapshot structs) ──────────
 
@@ -94,33 +94,36 @@ function buildSectionData(
     case 'work_experience':
       return {
         items: visibleItems.map((it) => ({
-          id: it.id,
-          company:     (it.data.company as string)     ?? '',
-          position:    (it.data.position as string)    ?? '',
-          location:    (it.data.location as string)    ?? '',
-          start_date:  (it.data.start_date as string)  ?? '',
-          end_date:    (it.data.end_date as string)    ?? '',
-          is_current:  (it.data.is_current as boolean) ?? false,
-          description: (it.data.description as string) ?? '',
+          id:           it.id,
+          company:      (it.data.company as string)       ?? '',
+          position:     (it.data.position as string)      ?? '',
+          location:     (it.data.location as string)      ?? '',
+          start_date:   (it.data.start_date as string)    ?? '',
+          end_date:     (it.data.end_date as string)      ?? '',
+          is_current:   (it.data.is_current as boolean)   ?? false,
+          description:  (it.data.description as string)   ?? '',
+          achievements: (it.data.achievements as string[]) ?? [],
+          tech_stack:   (it.data.tech_stack as string[])   ?? [],
         })),
       }
 
     case 'education':
       return {
         items: visibleItems.map((it) => ({
-          id:         it.id,
-          school:     (it.data.school as string)     ?? '',
-          degree:     (it.data.degree as string)     ?? '',
-          field:      (it.data.field as string)      ?? '',
-          start_date: (it.data.start_date as string) ?? '',
-          end_date:   (it.data.end_date as string)   ?? '',
-          gpa:        (it.data.gpa as string)        ?? '',
-          description: (it.data.activities as string) ?? '',
+          id:          it.id,
+          school:      (it.data.school as string)      ?? '',
+          degree:      (it.data.degree as string)      ?? '',
+          field:       (it.data.field as string)       ?? '',
+          start_date:  (it.data.start_date as string)  ?? '',
+          end_date:    (it.data.end_date as string)    ?? '',
+          gpa:         (it.data.gpa as string)         ?? '',
+          // profile saves field as "activities", CV editor uses "description"
+          description: (it.data.activities as string) ?? (it.data.description as string) ?? '',
         })),
       }
 
     case 'skills':
-      // Skills section trong profile lưu theo nhóm (SkillsItemData)
+      // Skills section trong profile lưu theo nhóm (SkillsItemData: { group_name, skills[] })
       // CV Editor expect mảng flat items với { id, name, level }
       return {
         items: visibleItems.flatMap((it) => {
@@ -137,29 +140,41 @@ function buildSectionData(
       return {
         items: visibleItems.map((it) => ({
           id:          it.id,
-          name:        (it.data.name as string)        ?? '',
-          role:        (it.data.role as string)        ?? '',
-          url:         (it.data.url as string)         ?? '',
-          start_date:  (it.data.start_date as string)  ?? '',
-          end_date:    (it.data.end_date as string)    ?? '',
-          description: (it.data.description as string) ?? '',
-          tech_stack:  (it.data.tech_stack as string[]) ?? [],
+          name:        (it.data.name as string)          ?? '',
+          role:        (it.data.role as string)          ?? '',
+          url:         (it.data.url as string)           ?? '',
+          start_date:  (it.data.start_date as string)    ?? '',
+          end_date:    (it.data.end_date as string)      ?? '',
+          description: (it.data.description as string)   ?? '',
+          tech_stack:  (it.data.tech_stack as string[])  ?? [],
+          highlights:  (it.data.highlights as string[])  ?? [],
         })),
       }
 
     case 'certifications':
       return {
         items: visibleItems.map((it) => ({
-          id:     it.id,
-          name:   (it.data.name as string)   ?? '',
-          issuer: (it.data.issuer as string) ?? '',
-          date:   (it.data.date as string)   ?? '',
-          url:    (it.data.url as string)    ?? '',
+          id:            it.id,
+          name:          (it.data.name as string)           ?? '',
+          issuer:        (it.data.issuer as string)         ?? '',
+          date:          (it.data.date as string)           ?? '',
+          url:           (it.data.url as string)            ?? '',
+          credential_id: (it.data.credential_id as string)  ?? '',
+        })),
+      }
+
+    case 'languages':
+      return {
+        items: visibleItems.map((it) => ({
+          id:       it.id,
+          // profile may store as "language" or "name"
+          language: (it.data.language as string) ?? (it.data.name as string) ?? '',
+          level:    ((it.data.level as string) ?? 'professional') as LanguageLevel,
         })),
       }
 
     default:
-      // custom / languages / unknown: pass raw items data through
+      // custom / unknown: pass raw items data through
       return { items: visibleItems.map((it) => ({ id: it.id, ...it.data })) }
   }
 }
@@ -177,15 +192,15 @@ function buildPersonalSection(snap: ProfileSnapshot): CVSection {
     visible: true,
     order: 0,
     data: {
-      full_name: snap.full_name  ?? '',
-      job_title: snap.role_target ?? '',
-      email:     snap.email      ?? '',
-      phone:     snap.phone      ?? '',
-      location:  snap.location   ?? '',
-      website:   snap.website_url  ?? '',
-      linkedin:  snap.linkedin_url ?? '',
-      github:    snap.github_url   ?? '',
-      avatar_url: snap.avatar_url  ?? '',
+      full_name:  snap.full_name   ?? '',
+      job_title:  snap.role_target ?? '',
+      email:      snap.email       ?? '',
+      phone:      snap.phone       ?? '',
+      location:   snap.location    ?? '',
+      website:    snap.website_url  ?? '',
+      linkedin:   snap.linkedin_url ?? '',
+      github:     snap.github_url   ?? '',
+      avatar_url: snap.avatar_url   ?? '',
     },
   }
 }
