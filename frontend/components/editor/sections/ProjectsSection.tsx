@@ -25,7 +25,7 @@ const emptyItem = (): ProjectItem => ({
 
 export function ProjectsSection({ section }: Props) {
   const { updateSection } = useEditorStore()
-  const data = section.data as ProjectsData
+  const data = section.data as unknown as ProjectsData
   const items: ProjectItem[] = data?.items ?? []
   const [expandedId, setExpandedId] = useState<string | null>(items[0]?.id ?? null)
   const [tagInputs, setTagInputs] = useState<Record<string, string>>({})
@@ -101,7 +101,6 @@ export function ProjectsSection({ section }: Props) {
 
           {expandedId === item.id && (
             <div className="p-3 space-y-3">
-              {/* Name + role */}
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Tên dự án</Label>
@@ -117,7 +116,6 @@ export function ProjectsSection({ section }: Props) {
                 </div>
               </div>
 
-              {/* URL */}
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Link dự án (tùy chọn)</Label>
                 <Input className="h-8 text-sm" placeholder="https://github.com/you/project"
@@ -125,7 +123,6 @@ export function ProjectsSection({ section }: Props) {
                   onChange={(e) => patchItem(item.id, { url: e.target.value })} />
               </div>
 
-              {/* Dates */}
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Từ tháng</Label>
@@ -139,7 +136,6 @@ export function ProjectsSection({ section }: Props) {
                 </div>
               </div>
 
-              {/* Description */}
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Mô tả dự án</Label>
                 <textarea
@@ -150,7 +146,6 @@ export function ProjectsSection({ section }: Props) {
                 />
               </div>
 
-              {/* Highlights */}
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">
                   Điểm nổi bật (Enter để thêm)
@@ -178,7 +173,6 @@ export function ProjectsSection({ section }: Props) {
                 />
               </div>
 
-              {/* Tech stack */}
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">
                   Công nghệ (Enter hoặc dấu phẩy để thêm)

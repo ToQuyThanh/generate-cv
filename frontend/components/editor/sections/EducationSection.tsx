@@ -24,7 +24,7 @@ const emptyItem = (): EducationItem => ({
 
 export function EducationSection({ section }: Props) {
   const { updateSection } = useEditorStore()
-  const data = section.data as EducationData
+  const data = section.data as unknown as EducationData
   const items: EducationItem[] = data?.items ?? []
   const [expandedId, setExpandedId] = useState<string | null>(items[0]?.id ?? null)
 
@@ -99,7 +99,6 @@ export function EducationSection({ section }: Props) {
                     onChange={(e) => patchItem(item.id, { gpa: e.target.value })} />
                 </div>
               </div>
-              {/* Activities / notes */}
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Hoạt động / ghi chú (tùy chọn)</Label>
                 <textarea

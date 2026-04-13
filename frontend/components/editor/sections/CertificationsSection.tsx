@@ -22,7 +22,7 @@ const emptyItem = (): CertificationItem => ({
 
 export function CertificationsSection({ section }: Props) {
   const { updateSection } = useEditorStore()
-  const data = section.data as CertificationsData
+  const data = section.data as unknown as CertificationsData
   const items: CertificationItem[] = data?.items ?? []
   const [expandedId, setExpandedId] = useState<string | null>(items[0]?.id ?? null)
 
@@ -69,7 +69,6 @@ export function CertificationsSection({ section }: Props) {
 
           {expandedId === item.id && (
             <div className="p-3 space-y-2">
-              {/* Name + issuer */}
               <div className="grid grid-cols-2 gap-2">
                 <div className="col-span-2 space-y-1">
                   <Label className="text-xs text-muted-foreground">Tên chứng chỉ</Label>
@@ -90,7 +89,6 @@ export function CertificationsSection({ section }: Props) {
                 </div>
               </div>
 
-              {/* URL */}
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Link xác minh (tùy chọn)</Label>
                 <Input className="h-8 text-sm" placeholder="https://verify.example.com/cert/..."
@@ -98,7 +96,6 @@ export function CertificationsSection({ section }: Props) {
                   onChange={(e) => patchItem(item.id, { url: e.target.value })} />
               </div>
 
-              {/* Credential ID */}
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Mã chứng chỉ (tùy chọn)</Label>
                 <Input className="h-8 text-sm" placeholder="ABC-12345"
