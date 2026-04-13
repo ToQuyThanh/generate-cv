@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { CV, CVSection } from '@/types'
+import { snapshotToSections, hasProfileSnapshot, type ProfileSnapshot } from '@/lib/profile-snapshot'
 
 interface EditorState {
   // Dữ liệu CV đang edit
@@ -31,8 +32,31 @@ export const useEditorStore = create<EditorState>((set) => ({
   lastSavedAt: null,
   isAIPanelOpen: false,
 
-  setCVData: (cv) =>
-    set({ cvData: cv, isDirty: false, lastSavedAt: null }),
+  setCVData: (cv) => {
+    // Nếu CV có profile_snapshot và sections rỗng/chưa có data,
+    // tự động populate sections từ snapshot.
+    let sections = cv.sections
+    const snapshot = cv.profile_snapshot
+    const sectionsAreEmpty =
+      !sections ||
+      sections.length === 0 ||
+      sections.every((s) => {
+        const d = s.data as Record<string, unknown>
+        // personal section: check full_name
+        if (s.type === 'personal') return !d.full_name
+        // summary section: check content
+        if (s.type === 'summary') return !d.content
+        // other sections: check items array
+        const items = d.items as unknown[]
+        return !items || items.length === 0
+      })
+
+    if (sectionsAreEmpty && hasProfileSnapshot(snapshot)) {
+      sections = snapshotToSections(snapshot as unknown as ProfileSnapshot)
+    }
+
+    set({ cvData: { ...cv, sections }, isDirty: false, lastSavedAt: null })
+  },
 
   updateTitle: (title) =>
     set((s) =>
