@@ -1,3 +1,13 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# FILE NÀY DÀNH CHO DEVELOPMENT LOCAL
+#
+# Chỉ khởi động PostgreSQL + Redis + goose migrate.
+# Backend Go và Frontend Next.js chạy trực tiếp trên host (không qua Docker).
+#
+# Để deploy PRODUCTION đầy đủ, dùng docker-compose.yml ở thư mục gốc:
+#   cd ..  &&  docker compose up -d
+# ─────────────────────────────────────────────────────────────────────────────
+
 services:
   postgres:
     image: postgres:16-alpine

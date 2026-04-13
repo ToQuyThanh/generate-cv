@@ -1,36 +1,54 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# dependencies
-/node_modules
+# ── Dependencies ──────────────────────────────────────────────────────────────
+node_modules/
 /.pnp
 .pnp.js
 
-# testing
-/coverage
+# ── Testing ───────────────────────────────────────────────────────────────────
+coverage/
 
-# next.js
-/.next/
-/out/
+# ── Next.js ───────────────────────────────────────────────────────────────────
+frontend/.next/
+frontend/out/
 
-# production
-/build
+# ── Production builds ─────────────────────────────────────────────────────────
+build/
 
-# misc
+# ── Misc ──────────────────────────────────────────────────────────────────────
 .DS_Store
 *.pem
+Thumbs.db
 
-# debug
+# ── Debug logs ────────────────────────────────────────────────────────────────
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# local env files
-.env*.local
+# ── Sensitive / Environment files ─────────────────────────────────────────────
+# Tất cả .env thật đều bị ignore — chỉ commit file .example
 .env
+.env.local
+.env.development
+.env.production
+.env.staging
+.env.*.local
+# Giữ lại example files
+!.env.example
+!frontend/.env.local.example
+!backend/.env.example
 
-# vercel
+# ── Go build artifacts ────────────────────────────────────────────────────────
+backend/tmp/
+backend/server
+
+# ── TypeScript ────────────────────────────────────────────────────────────────
+*.tsbuildinfo
+frontend/next-env.d.ts
+
+# ── Vercel ────────────────────────────────────────────────────────────────────
 .vercel
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts
+# ── IDE ───────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo

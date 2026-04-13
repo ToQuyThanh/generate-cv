@@ -1,0 +1,154 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# generate-cv — Full-stack Docker Compose
+#
+# Usage:
+#   cp .env.example .env        # điền biến môi trường thật
+#   docker compose up -d        # khởi động toàn bộ stack
+#   docker compose logs -f      # theo dõi log
+#   docker compose down         # dừng (giữ volume)
+#   docker compose down -v      # dừng + xoá volume
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: gcv_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-generate_cv}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Không expose port ra ngoài host trong production
+    # Nếu cần debug: uncomment dòng dưới
+    # ports:
+    #   - "127.0.0.1:5432:5432"
+
+  # ── Redis ───────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: gcv_redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD:-}
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - backend_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-}", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # ports:
+    #   - "127.0.0.1:6379:6379"
+
+  # ── DB Migration (chạy một lần rồi exit) ───────────────────────────────────
+  migrate:
+    build:
+      context: ./backend
+      dockerfile: docker/goose.Dockerfile
+    container_name: gcv_migrate
+    restart: "no"
+    volumes:
+      - ./backend/db/migrations:/migrations:ro
+    command:
+      - "-dir"
+      - "/migrations"
+      - "postgres"
+      - "host=postgres port=5432 user=${DB_USER:-postgres} password=${DB_PASSWORD:-postgres} dbname=${DB_NAME:-generate_cv} sslmode=disable"
+      - "up"
+    networks:
+      - backend_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ── Backend API (Go + Gin) ──────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: gcv_backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Override host names để trỏ vào service Docker (không phải localhost)
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      REDIS_ADDR: "redis:6379"
+      APP_ENV: ${APP_ENV:-production}
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks:
+      - backend_net
+      - frontend_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ── Frontend (Next.js) ──────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+        NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-}
+    container_name: gcv_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    networks:
+      - frontend_net
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+# ── Networks ────────────────────────────────────────────────────────────────
+networks:
+  backend_net:
+    driver: bridge
+    # Mạng nội bộ: postgres, redis, migrate, backend
+  frontend_net:
+    driver: bridge
+    # Mạng kết nối: frontend ↔ backend
+
+# ── Volumes ─────────────────────────────────────────────────────────────────
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local

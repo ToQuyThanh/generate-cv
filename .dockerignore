@@ -1,0 +1,26 @@
+# Version control
+.git
+.gitignore
+
+# Sensitive files — KHÔNG bao giờ đưa vào build context
+.env
+.env.*
+!.env.example
+
+# Docs
+docs/
+*.md
+
+# Frontend build artifacts
+frontend/.next/
+frontend/node_modules/
+frontend/coverage/
+
+# Backend build artifacts
+backend/tmp/
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

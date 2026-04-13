@@ -18,115 +18,104 @@ Thanh toán qua **VNPay / MoMo** — không cần thẻ quốc tế.
 
 ---
 
+## 🚀 Deploy nhanh (Docker Compose)
+
+```bash
+# 1. Clone project
+git clone https://github.com/yourname/generate-cv.git
+cd generate-cv
+
+# 2. Tạo file env và điền giá trị thật
+cp .env.example .env
+nano .env   # Điền các biến [REQUIRED]
+
+# 3. Build và khởi động toàn bộ stack
+docker compose build
+docker compose up -d
+
+# 4. Kiểm tra
+curl http://localhost:8080/health   # {"status":"ok"}
+curl http://localhost:3000          # Next.js frontend
+```
+
+Xem hướng dẫn đầy đủ tại [`docs/deployment.md`](./docs/deployment.md).
+
+---
+
 ## Cấu trúc dự án
 
 ```
 generate-cv/
 │
+├── docker-compose.yml                 # Production stack (5 services)
+├── .env.example                       # Template biến môi trường
+├── CHANGELOG.md                       # Lịch sử thay đổi
+│
+├── docs/                              # Toàn bộ tài liệu dự án
+│   ├── architecture.md                # Sơ đồ hạ tầng, Docker networks
+│   ├── deployment.md                  # Hướng dẫn deploy production
+│   ├── design.md                      # Design system
+│   ├── techstack.md                   # Tech stack & lý do chọn
+│   ├── function-list.md               # API endpoints & frontend screens
+│   ├── plan.md                        # Lộ trình phát triển
+│   ├── plan-profile.md                # Kế hoạch Profile System
+│   └── openapi.yaml                   # OpenAPI 3.x spec
+│
 ├── frontend/                          # Next.js 14 · TypeScript · Tailwind CSS
+│   ├── Dockerfile                     # Multi-stage build (3 stages)
 │   ├── app/
-│   │   ├── (auth)/
-│   │   │   ├── login/                 # Trang đăng nhập
-│   │   │   └── register/              # Trang đăng ký
-│   │   ├── (dashboard)/
-│   │   │   ├── dashboard/             # Trang chủ sau đăng nhập — danh sách CV
-│   │   │   ├── cv/
-│   │   │   │   ├── new/               # Tạo CV mới — chọn template
-│   │   │   │   └── [id]/              # Editor CV theo ID
-│   │   │   └── settings/              # Cài đặt tài khoản, subscription
-│   │   ├── api/
-│   │   │   └── webhook/               # Webhook nhận callback VNPay / MoMo
-│   │   └── pricing/                   # Trang giá — so sánh gói, CTA mua
-│   │
+│   │   ├── (auth)/login|register/
+│   │   ├── (dashboard)/dashboard|cv|settings/
+│   │   ├── api/webhook/
+│   │   └── pricing/
 │   ├── components/
 │   │   ├── cv/                        # CVCard, CVPreview, TemplateGallery
-│   │   ├── editor/                    # EditorPanel, SectionBlock, DragHandle
-│   │   ├── payment/                   # PricingCard, PaymentModal, SubscriptionBadge
-│   │   ├── shared/                    # Header, Footer, Sidebar, LoadingSpinner
-│   │   └── ui/                        # shadcn/ui components (Button, Dialog, …)
-│   │
-│   ├── lib/
-│   │   ├── api/                       # Axios client, API call functions
-│   │   ├── hooks/                     # useCV, useSubscription, useEditor
-│   │   └── utils/                     # Format date, slugify, cn()
-│   │
-│   ├── store/                         # Zustand stores — editorStore, authStore
-│   ├── types/                         # TypeScript interfaces — CV, User, Subscription
-│   └── public/
-│       ├── fonts/                     # Font tải về (Be Vietnam Pro, …)
-│       └── templates/                 # Ảnh thumbnail preview template
+│   │   ├── editor/                    # EditorPanel, SectionBlock
+│   │   ├── payment/                   # PricingCard, PaymentModal
+│   │   ├── shared/                    # Header, Sidebar
+│   │   └── ui/                        # shadcn/ui components
+│   ├── lib/api/                       # Axios client + API modules
+│   ├── store/                         # Zustand: authStore, editorStore
+│   └── types/                         # TypeScript interfaces
 │
-└── backend/                           # Go (Gin) · PostgreSQL · Asynq
-    ├── cmd/
-    │   └── server/                    # main.go — entry point, khởi động server
-    │
-    ├── internal/                      # Logic không export ra ngoài package
-    │   ├── handler/                   # HTTP handlers — nhận request, trả response
-    │   ├── service/                   # Business logic — xử lý nghiệp vụ chính
-    │   ├── repository/                # Truy vấn DB (sqlc generated)
-    │   ├── middleware/                # Auth JWT, rate limit, CORS, logger
-    │   ├── model/                     # Struct Go map với DB schema
-    │   └── worker/                    # Asynq task handlers — xử lý job bất đồng bộ
-    │
-    ├── pkg/                           # Thư viện dùng chung, có thể tái sử dụng
-    │   ├── ai/                        # Claude API client — gợi ý nội dung CV
-    │   ├── pdf/                       # go-rod headless Chrome — export PDF
-    │   ├── payment/                   # VNPay + MoMo SDK wrapper
-    │   ├── email/                     # Resend client — gửi email thông báo
-    │   └── storage/                   # GCS client — upload / download file
-    │
-    ├── db/
-    │   ├── migrations/                # SQL migration files (goose)
-    │   └── queries/                   # sqlc query files (.sql)
-    │
-    └── config/                        # Load env, cấu hình app, DB, Redis
+└── backend/                           # Go (Gin) · PostgreSQL · Redis
+    ├── Dockerfile                     # Multi-stage build Go
+    ├── docker-compose.yml             # Dev-only: postgres + redis + migrate
+    ├── cmd/server/main.go             # Entry point
+    ├── internal/
+    │   ├── handler/                   # HTTP handlers
+    │   ├── service/                   # Business logic
+    │   ├── repository/                # DB access (sqlc)
+    │   ├── middleware/                # Auth JWT, RateLimit, CORS
+    │   └── router/                    # Gin router + DI wiring
+    ├── pkg/
+    │   ├── ai/                        # Claude API client
+    │   ├── payment/                   # VNPay + MoMo
+    │   ├── pdf/                       # go-rod PDF export
+    │   └── email/                     # Resend email
+    └── db/
+        ├── migrations/                # goose SQL migrations
+        └── queries/                   # sqlc query files
 ```
 
 ---
 
-## Hạ tầng
+## Development local
 
-```
-                    ┌─────────────┐
-                    │ Cloudflare  │  CDN + DDoS protection
-                    └──────┬──────┘
-                           │
-              ┌────────────┴────────────┐
-              │                         │
-    ┌─────────▼──────────┐   ┌──────────▼─────────┐
-    │  GCP Cloud Run      │   │  On-premise Server  │
-    │  (Next.js Frontend) │   │  (Go API + Redis)   │
-    └────────────────────┘   └──────────┬──────────┘
-                                         │
-                             ┌───────────▼───────────┐
-                             │  On-premise PostgreSQL  │
-                             └───────────────────────┘
-                                         │
-                             ┌───────────▼──────────┐
-                             │  GCS (File Storage)   │
-                             └──────────────────────┘
-```
+```bash
+# Khởi động PostgreSQL + Redis (không chạy app trong Docker)
+cd backend
+make docker-up       # postgres + redis
+make migrate-up      # chạy migrations
 
-| Thành phần | Công nghệ | Nơi chạy |
-|---|---|---|
-| Frontend | Next.js 14 | GCP Cloud Run |
-| Backend API | Go + Gin | On-premise |
-| Database | PostgreSQL | On-premise |
-| Job Queue | Asynq + Redis | On-premise |
-| File Storage | Google Cloud Storage | GCP |
-| CDN + Security | Cloudflare | Cloud |
-| CI/CD | GitHub Actions | Cloud |
+# Backend
+make run             # http://localhost:8080
 
----
-
-## Luồng chính
-
-```
-User tạo CV → Chọn template → Điền nội dung (AI gợi ý theo JD)
-           → Preview real-time → Export PDF
-           → Nếu Free: PDF có watermark → Hiện paywall
-           → Mua gói → VNPay / MoMo → Webhook xác nhận
-           → Mở khóa export PDF sạch
+# Frontend (terminal khác)
+cd frontend
+cp .env.local.example .env.local
+npm install
+npm run dev          # http://localhost:3000
 ```
 
 ---
@@ -135,29 +124,14 @@ User tạo CV → Chọn template → Điền nội dung (AI gợi ý theo JD)
 
 | File | Nội dung |
 |---|---|
-| [`techstack.md`](./techstack.md) | Chi tiết công nghệ, lý do chọn, chi phí hạ tầng |
-| [`function_list.md`](./function_list.md) | Danh sách toàn bộ API endpoints và chức năng frontend |
+| [`docs/deployment.md`](./docs/deployment.md) | Hướng dẫn deploy production với Docker |
+| [`docs/architecture.md`](./docs/architecture.md) | Sơ đồ hạ tầng và Docker network |
+| [`docs/techstack.md`](./docs/techstack.md) | Chi tiết công nghệ, lý do chọn, chi phí |
+| [`docs/function-list.md`](./docs/function-list.md) | Danh sách API endpoints và màn hình |
+| [`docs/plan.md`](./docs/plan.md) | Lộ trình phát triển 6 tháng |
+| [`docs/openapi.yaml`](./docs/openapi.yaml) | OpenAPI 3.x specification |
+| [`CHANGELOG.md`](./CHANGELOG.md) | Lịch sử thay đổi phiên bản |
 
 ---
 
-## Getting Started
-
-```bash
-# Frontend
-cd frontend
-npm install
-npm run dev        # http://localhost:3000
-
-# Backend
-cd backend
-go mod tidy
-go run cmd/server/main.go   # http://localhost:8080
-
-# DB migration
-cd backend
-goose -dir db/migrations postgres "$DATABASE_URL" up
-```
-
----
-
-*Tháng 4/2026 · Thị trường Việt Nam*
+*v1.0.0 · Tháng 4/2026 · Thị trường Việt Nam*
