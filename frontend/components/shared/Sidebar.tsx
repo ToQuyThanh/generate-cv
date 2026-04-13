@@ -2,19 +2,33 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { FileText, LayoutDashboard, LogOut, Sparkles, PlusCircle, Settings, HelpCircle, ChevronsUpDown, CreditCard, X, Menu } from 'lucide-react'
+import {
+  FileText,
+  LayoutDashboard,
+  LogOut,
+  Sparkles,
+  PlusCircle,
+  Settings,
+  HelpCircle,
+  ChevronsUpDown,
+  CreditCard,
+  X,
+  Menu,
+  Database,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { useState, useRef, useEffect } from 'react'
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
-import { useAuthStore } from '@/store'
+import { useAuthStore, useProfileStore } from '@/store'
 import { authApi } from '@/lib/api'
 import { cn, getPlanLabel } from '@/lib/utils'
 import { REFRESH_TOKEN_KEY } from '@/lib/api/client'
 
 const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard', label: 'Dashboard',  icon: LayoutDashboard },
+  { href: '/profiles',  label: 'Dữ liệu CV', icon: Database, showBadge: true },
   { href: '/cv/new',    label: 'Tạo CV mới', icon: PlusCircle },
 ]
 
@@ -22,8 +36,15 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname()
   const router = useRouter()
   const { user, subscription, clearAuth } = useAuthStore()
+  const { profiles, fetchProfiles } = useProfileStore()
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+
+  // Fetch profiles count khi sidebar mount
+  useEffect(() => {
+    fetchProfiles().catch(() => {/* silent */})
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleLogout = async () => {
     try {
@@ -61,10 +82,13 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
       {/* Nav */}
       <nav className="flex-1 space-y-0.5 p-3 pt-3">
-        {navItems.map(({ href, label, icon: Icon }) => {
+        {navItems.map(({ href, label, icon: Icon, showBadge }) => {
           const isActive =
             pathname === href ||
-            (href === '/cv/new' && (pathname === '/cv/new' || pathname === '/templates'))
+            (href === '/cv/new' && (pathname === '/cv/new' || pathname === '/templates')) ||
+            (href === '/profiles' && pathname.startsWith('/profiles'))
+
+          const profileCount = showBadge ? profiles.length : 0
 
           return (
             <Link
@@ -79,7 +103,19 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
               )}
             >
               <Icon className="h-4 w-4 shrink-0" />
-              {label}
+              <span className="flex-1">{label}</span>
+              {showBadge && profileCount > 0 && (
+                <span
+                  className={cn(
+                    'ml-auto text-[11px] font-semibold px-1.5 py-0.5 rounded-full min-w-[20px] text-center leading-none',
+                    isActive
+                      ? 'bg-white/20 text-white'
+                      : 'bg-[rgba(20,110,245,0.1)] text-wf-blue'
+                  )}
+                >
+                  {profileCount}
+                </span>
+              )}
             </Link>
           )
         })}

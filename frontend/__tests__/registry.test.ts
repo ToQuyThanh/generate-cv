@@ -8,8 +8,8 @@ import {
 } from '@/templates/registry'
 
 describe('Template Registry', () => {
-  it('có đủ 4 template được đăng ký', () => {
-    expect(Object.keys(TEMPLATE_REGISTRY)).toHaveLength(4)
+  it('có đủ số lượng template được đăng ký', () => {
+    expect(Object.keys(TEMPLATE_REGISTRY).length).toBeGreaterThanOrEqual(9)
   })
 
   it('các template ID bắt buộc phải có mặt', () => {
@@ -18,6 +18,11 @@ describe('Template Registry', () => {
     expect(ids).toContain('template_classic_01')
     expect(ids).toContain('template_minimal_01')
     expect(ids).toContain('template_sidebar_01')
+    expect(ids).toContain('template_executive_01')
+    expect(ids).toContain('template_creative_01')
+    expect(ids).toContain('template_ats_clean_01')
+    expect(ids).toContain('template_ats_pro_01')
+    expect(ids).toContain('template_compact_01')
   })
 
   it('mỗi entry đều có meta và component', () => {
