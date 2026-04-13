@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import type { CVProfileListItem, CreateCVRequest } from '@/types'
+import type { CVProfileListItem, CreateCVRequest, CVSection } from '@/types'
 
 // ─── Re-implement pure logic từ page (không import Next.js components) ───────
 
@@ -19,12 +19,15 @@ function buildCreateCVRequest(params: {
   selectedTemplate: string
   selectedColor: string
   selectedProfileId: string | null
+  blankSections?: CVSection[]
 }): CreateCVRequest {
   return {
     template_id: params.selectedTemplate,
     color_theme: params.selectedColor,
     title: 'CV của tôi',
-    sections: [],
+    // Khi có profile_id, không gửi sections — để backend tạo profile_snapshot
+    // và editorStore populate sections từ snapshot.
+    sections: params.selectedProfileId ? undefined : (params.blankSections ?? []),
     profile_id: params.selectedProfileId ?? undefined,
   }
 }
@@ -129,6 +132,27 @@ describe('buildCreateCVRequest — profile integration', () => {
   it('blank template is a valid template_id', () => {
     const req = buildCreateCVRequest({ ...baseParams, selectedTemplate: 'blank', selectedProfileId: null })
     expect(req.template_id).toBe('blank')
+  })
+
+  // ─ New: sections logic ──────────────────────────────────────────────────
+
+  it('omits sections (undefined) when profile_id is set', () => {
+    const req = buildCreateCVRequest({ ...baseParams, selectedProfileId: 'p1' })
+    expect(req.sections).toBeUndefined()
+  })
+
+  it('includes blank sections when no profile_id', () => {
+    const blankSections: CVSection[] = [
+      { id: 'sec-1', type: 'personal', title: 'Thông tin', visible: true, order: 0, data: {} },
+    ]
+    const req = buildCreateCVRequest({ ...baseParams, selectedProfileId: null, blankSections })
+    expect(req.sections).toHaveLength(1)
+    expect(req.sections![0].type).toBe('personal')
+  })
+
+  it('sections defaults to [] when no profile_id and no blankSections provided', () => {
+    const req = buildCreateCVRequest({ ...baseParams, selectedProfileId: null })
+    expect(req.sections).toEqual([])
   })
 })
 

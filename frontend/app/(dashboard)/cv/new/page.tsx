@@ -315,7 +315,10 @@ export default function NewCVPage() {
         template_id: selectedTemplate,
         color_theme: selectedColor,
         title: 'CV của tôi',
-        sections: getBlankSections(),
+        // Khi có profile_id, không truyền sections — backend sẽ tạo profile_snapshot
+        // và editorStore sẽ populate sections từ snapshot khi mở editor.
+        // Khi không có profile_id, dùng blank sections như bình thường.
+        sections: selectedProfileId ? undefined : getBlankSections(),
         profile_id: selectedProfileId ?? undefined,
       })
       toast.success('Đã tạo CV!')
