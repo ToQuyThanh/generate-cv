@@ -60,7 +60,7 @@ export function EditorLayout() {
       {/* Body */}
       <div className="flex flex-1 overflow-hidden">
         {/* Left panel — editor */}
-        <div className="w-[400px] shrink-0 border-r overflow-y-auto">
+        <div className="w-[400px] shrink-0 border-r flex flex-col overflow-hidden">
           <EditorPanel />
         </div>
 
