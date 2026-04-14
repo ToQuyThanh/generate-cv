@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, Suspense } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { FileText } from 'lucide-react'
 
@@ -21,7 +21,20 @@ const schema = z.object({
 })
 type FormData = z.infer<typeof schema>
 
-export default function LoginPage() {
+// Component nhỏ đọc searchParams — phải nằm trong Suspense boundary
+function OAuthErrorToast() {
+  const searchParams = useSearchParams()
+
+  useEffect(() => {
+    if (searchParams.get('error')) {
+      toast.error('Đăng nhập Google thất bại, vui lòng thử lại.')
+    }
+  }, [searchParams])
+
+  return null
+}
+
+function LoginForm() {
   const router = useRouter()
   const { setAuth, setSubscription, isAuthenticated } = useAuthStore()
 
@@ -134,5 +147,17 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <>
+      {/* OAuthErrorToast cần Suspense vì dùng useSearchParams */}
+      <Suspense fallback={null}>
+        <OAuthErrorToast />
+      </Suspense>
+      <LoginForm />
+    </>
   )
 }
