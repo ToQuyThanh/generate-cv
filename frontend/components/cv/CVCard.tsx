@@ -80,6 +80,7 @@ export function CVCard({ cv, onDuplicate, onDelete, onRename }: CVCardProps) {
         <CVMiniPreview
           sections={cv.sections ?? []}
           colorTheme={cv.color_theme}
+          templateId={cv.template_id}
           containerWidth={280}
         />
       </div>

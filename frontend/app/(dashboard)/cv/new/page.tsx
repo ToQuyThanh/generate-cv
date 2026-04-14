@@ -24,7 +24,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { cvApi, apiClient } from '@/lib/api'
-import { getBlankSections } from '@/lib/cv-template'
+import { getBlankSections, getSampleSections } from '@/lib/cv-template'
 import { CVMiniPreview } from '@/components/cv/CVMiniPreview'
 import { useAuthStore, useProfileStore } from '@/store'
 import { cn } from '@/lib/utils'
@@ -47,7 +47,7 @@ const COLOR_PRESETS = [
   '#059669', '#d97706', '#dc2626', '#374151',
 ]
 
-const PREVIEW_SECTIONS = getBlankSections()
+const PREVIEW_SECTIONS = getSampleSections()
 
 const FILTER_TABS = [
   { key: 'all',           label: 'Tất cả',        icon: LayoutGrid },
