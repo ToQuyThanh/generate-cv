@@ -45,10 +45,9 @@ function CallbackContent() {
     }
 
     // Lưu token trước để apiClient có thể dùng khi gọi /users/me
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(TOKEN_KEY, accessToken)
-      localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken)
-    }
+    // (useEffect chỉ chạy ở client nên không cần check typeof window)
+    localStorage.setItem(TOKEN_KEY, accessToken)
+    localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken)
 
     // Lấy thông tin user và subscription
     const finishLogin = async () => {
@@ -71,10 +70,8 @@ function CallbackContent() {
         router.replace('/dashboard')
       } catch {
         // Dọn token nếu /users/me fail
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem(TOKEN_KEY)
-          localStorage.removeItem(REFRESH_TOKEN_KEY)
-        }
+        localStorage.removeItem(TOKEN_KEY)
+        localStorage.removeItem(REFRESH_TOKEN_KEY)
         toast.error('Đăng nhập thất bại. Vui lòng thử lại.')
         router.replace('/login')
       }
