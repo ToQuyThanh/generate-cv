@@ -18,6 +18,8 @@ interface EditorState {
   updateColorTheme: (color: string) => void
   updateTemplateId: (templateId: string) => void
   updateSection: (sectionId: string, data: Partial<CVSection>) => void
+  addSection: (section: CVSection) => void
+  removeSection: (sectionId: string) => void
   reorderSections: (sections: CVSection[]) => void
   setSaving: (saving: boolean) => void
   markSaved: () => void
@@ -86,6 +88,25 @@ export const useEditorStore = create<EditorState>((set) => ({
     set((s) =>
       s.cvData ? { cvData: { ...s.cvData, sections }, isDirty: true } : {}
     ),
+
+  addSection: (section) =>
+    set((s) =>
+      s.cvData
+        ? { cvData: { ...s.cvData, sections: [...s.cvData.sections, section] }, isDirty: true }
+        : {}
+    ),
+
+  removeSection: (sectionId) =>
+    set((s) => {
+      if (!s.cvData) return {}
+      return {
+        cvData: {
+          ...s.cvData,
+          sections: s.cvData.sections.filter((sec) => sec.id !== sectionId),
+        },
+        isDirty: true,
+      }
+    }),
 
   setSaving: (isSaving) => set({ isSaving }),
 

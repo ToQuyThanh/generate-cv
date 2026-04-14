@@ -151,4 +151,29 @@ docker compose up -d
 
 ---
 
+## [1.2.0] — 2026-04-14
+
+### Added
+
+#### Editor — Settings tab, Template picker, Custom Section
+
+- **`components/editor/EditorPanel.tsx`** — Thêm 2 tab mới vào tab bar:
+  - **Tab ⚙️ (Settings)** — đổi tên CV, chọn màu chủ đạo (picker + 8 preset), chọn template khác ngay trong editor không cần tạo lại CV
+  - **Tab + Thêm** — thêm section chuẩn còn thiếu (Experience, Education...) hoặc tạo custom section tự do
+  - Standard sections có thể xóa bằng nút Trash trong header của từng tab (trừ `personal`)
+  - Custom section dùng `section.id` làm tab key — hỗ trợ nhiều custom section cùng lúc
+
+- **`components/editor/sections/CustomSection.tsx`** *(mới)* — Editor cho custom section:
+  - Chỉnh sửa tên section inline
+  - Danh sách bullet points tự do (thêm / xóa từng dòng)
+  - Nút "Xóa section này" ở cuối
+
+- **`store/editorStore.ts`** — Thêm 2 action:
+  - `addSection(section)` — thêm section mới vào cuối danh sách
+  - `removeSection(sectionId)` — xóa section khỏi CV
+
+- **`components/editor/EditorLayout.tsx`** — Đổi title input thành `<span>` read-only (việc đổi tên CV chuyển vào Settings tab)
+
+---
+
 [1.0.0]: https://github.com/yourname/generate-cv/releases/tag/v1.0.0
