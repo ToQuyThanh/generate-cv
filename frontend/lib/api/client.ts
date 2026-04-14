@@ -43,6 +43,13 @@ apiClient.interceptors.response.use(
       return Promise.reject(error)
     }
 
+    // Không có refresh token nghĩa là user chưa login (vd: đang gọi /auth/login với sai credentials)
+    // → reject ngay, không cố refresh (tránh redirect về /login làm mất toast error)
+    const storedRefresh = localStorage.getItem(REFRESH_TOKEN_KEY)
+    if (!storedRefresh) {
+      return Promise.reject(error)
+    }
+
     if (isRefreshing) {
       return new Promise((resolve, reject) => {
         failedQueue.push({ resolve, reject })
@@ -56,11 +63,8 @@ apiClient.interceptors.response.use(
     isRefreshing = true
 
     try {
-      const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY)
-      if (!refreshToken) throw new Error('No refresh token')
-
       const { data } = await axios.post(`${BASE_URL}/auth/refresh`, {
-        refresh_token: refreshToken,
+        refresh_token: storedRefresh,
       })
 
       const newToken: string = data.access_token
