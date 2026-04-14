@@ -54,6 +54,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool, rdb *redis.Client) *gin.Engine 
 	// ─── Handlers ─────────────────────────────────────────────────────────────
 	authHandler     := handler.NewAuthHandler(authSvc)
 	googleHandler   := handler.NewGoogleHandler(cfg)
+	googleHandler.SetAuthService(authSvc)
 	cvHandler       := handler.NewCVHandler(cvSvc)
 	profileHandler  := handler.NewProfileHandler(profileSvc)
 	userHandler     := handler.NewUserHandler(userSvc)

@@ -2,6 +2,20 @@
 
 ---
 
+## [0.4.1] — 2026-04-14 · Google OAuth Integration
+
+### Added
+- `config.go`: thêm `FrontendURL` vào `AppConfig`, đọc từ env `FRONTEND_URL` (default: `http://localhost:3000`)
+- `handler/google_oauth.go`: sau OAuth callback thành công, redirect về `{FRONTEND_URL}/auth/callback?access_token=...&refresh_token=...` thay vì trả JSON trực tiếp; lỗi cũng redirect về frontend kèm `?error=<code>`
+- `router.go`: inject `authSvc` vào `googleHandler` qua `SetAuthService` — fix bug 503 khi chưa có service
+- Frontend `app/auth/callback/page.tsx`: trang mới nhận token từ query params, gọi `/users/me`, lưu vào authStore, redirect về `/dashboard`
+- Frontend `app/(auth)/login/page.tsx`: hiển thị toast lỗi khi redirect về từ OAuth thất bại (`?error=`), wrap `useSearchParams` trong Suspense boundary
+
+### Fixed
+- `GOOGLE_REDIRECT_URL` trong `.env.example` đã sửa thành đúng path `/api/v1/auth/google/callback`
+
+---
+
 ## [0.4.0] — 2026-04-12 · Tuần 7: Payment Integration
 
 ### Added

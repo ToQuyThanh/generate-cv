@@ -22,6 +22,7 @@ type AppConfig struct {
 	Port        string
 	Release     string // used for Sentry release tracking
 	CORSOrigins []string
+	FrontendURL string
 }
 
 type DBConfig struct {
@@ -91,6 +92,7 @@ func Load() (*Config, error) {
 	v.SetDefault("JWT_ACCESS_TTL_MINUTES", 15)
 	v.SetDefault("JWT_REFRESH_TTL_DAYS", 30)
 	v.SetDefault("SENTRY_DSN", "")
+	v.SetDefault("FRONTEND_URL", "http://localhost:3000")
 
 	// Read .env file if it exists (silently ignore if not found)
 	v.SetConfigName(".env")
@@ -117,6 +119,7 @@ func Load() (*Config, error) {
 			Port:        v.GetString("APP_PORT"),
 			Release:     v.GetString("APP_RELEASE"),
 			CORSOrigins: corsOrigins,
+			FrontendURL: v.GetString("FRONTEND_URL"),
 		},
 		DB: DBConfig{
 			Host:     v.GetString("DB_HOST"),
