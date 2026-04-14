@@ -72,9 +72,11 @@ apiClient.interceptors.response.use(
       return apiClient(original)
     } catch (refreshError) {
       processQueue(refreshError, null)
-      // Xoá token và chuyển về login
+      // Xoá cả localStorage lẫn Zustand store trước khi redirect
       localStorage.removeItem(TOKEN_KEY)
       localStorage.removeItem(REFRESH_TOKEN_KEY)
+      // Reset Zustand persist storage để isAuthenticated không còn true
+      try { localStorage.removeItem('gcv-auth') } catch {}
       if (typeof window !== 'undefined') window.location.href = '/login'
       return Promise.reject(refreshError)
     } finally {

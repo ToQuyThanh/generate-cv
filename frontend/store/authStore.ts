@@ -32,6 +32,7 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
 
       setAuth: ({ user, access_token, refresh_token }) => {
+        // Sync vào localStorage để apiClient interceptor đọc được ngay lập tức
         if (typeof window !== 'undefined') {
           localStorage.setItem(TOKEN_KEY, access_token)
           localStorage.setItem(REFRESH_TOKEN_KEY, refresh_token)
@@ -64,11 +65,27 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'gcv-auth',
+      // Persist cả token để sau khi reload/navigate, Zustand hydrate đúng state
+      // và interceptor có thể đọc token từ localStorage (được sync lại bởi onRehydrateStorage)
       partialize: (state) => ({
         user: state.user,
         subscription: state.subscription,
         isAuthenticated: state.isAuthenticated,
+        accessToken: state.accessToken,
+        refreshToken: state.refreshToken,
       }),
+      // Sau khi hydrate từ storage, đồng bộ lại token vào localStorage
+      // để apiClient interceptor (đọc localStorage trực tiếp) có token ngay lập tức
+      onRehydrateStorage: () => (state) => {
+        if (!state) return
+        if (typeof window === 'undefined') return
+        if (state.accessToken) {
+          localStorage.setItem(TOKEN_KEY, state.accessToken)
+        }
+        if (state.refreshToken) {
+          localStorage.setItem(REFRESH_TOKEN_KEY, state.refreshToken)
+        }
+      },
     }
   )
 )
