@@ -58,6 +58,7 @@ export type SectionType =
   | 'projects'
   | 'certifications'
   | 'languages'
+  | 'custom'
 
 export interface PersonalData {
   full_name: string
