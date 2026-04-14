@@ -33,10 +33,9 @@ export const useAuthStore = create<AuthState>()(
 
       setAuth: ({ user, access_token, refresh_token }) => {
         // Sync vào localStorage để apiClient interceptor đọc được ngay lập tức
-        if (typeof window !== 'undefined') {
-          localStorage.setItem(TOKEN_KEY, access_token)
-          localStorage.setItem(REFRESH_TOKEN_KEY, refresh_token)
-        }
+        // Zustand store chỉ chạy ở client (persist middleware), không cần check typeof window
+        localStorage.setItem(TOKEN_KEY, access_token)
+        localStorage.setItem(REFRESH_TOKEN_KEY, refresh_token)
         set({
           user,
           accessToken: access_token,
@@ -50,10 +49,8 @@ export const useAuthStore = create<AuthState>()(
       setSubscription: (subscription) => set({ subscription }),
 
       clearAuth: () => {
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem(TOKEN_KEY)
-          localStorage.removeItem(REFRESH_TOKEN_KEY)
-        }
+        localStorage.removeItem(TOKEN_KEY)
+        localStorage.removeItem(REFRESH_TOKEN_KEY)
         set({
           user: null,
           subscription: null,
@@ -78,7 +75,7 @@ export const useAuthStore = create<AuthState>()(
       // để apiClient interceptor (đọc localStorage trực tiếp) có token ngay lập tức
       onRehydrateStorage: () => (state) => {
         if (!state) return
-        if (typeof window === 'undefined') return
+        // onRehydrateStorage chỉ chạy ở client nên không cần check typeof window
         if (state.accessToken) {
           localStorage.setItem(TOKEN_KEY, state.accessToken)
         }
