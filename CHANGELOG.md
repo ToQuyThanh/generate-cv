@@ -119,4 +119,36 @@ docker compose up -d
 
 ---
 
+## [1.1.0] — 2026-04-14
+
+### Added
+
+#### Editor — Tab navigation & Markdown Session
+
+- **`components/editor/EditorPanel.tsx`** — Refactor từ scroll dọc sang tab navigation
+  - Mỗi section (Cá nhân, Tóm tắt, Kinh nghiệm...) là 1 tab riêng, click để chuyển
+  - Tab **🎨 Màu** — color picker + 8 preset colors
+  - Tab **Markdown** — mở custom markdown session (xem bên dưới)
+  - Visibility toggle hiển thị ngay trong content area của từng tab
+
+- **`components/editor/MarkdownEditor.tsx`** — Component mới: chỉnh sửa toàn bộ CV bằng markdown có cấu trúc
+  - Serialize toàn bộ CV sections → markdown text khi mount
+  - Nút **Áp dụng** parse markdown → update từng section vào store
+  - Nút **Khôi phục** sync lại từ store (bỏ thay đổi chưa apply)
+  - Nút **ℹ️** toggle hướng dẫn cú pháp inline với nút "Dùng mẫu này"
+  - Status bar: số dòng · số ký tự · trạng thái chưa áp dụng
+  - Chỉ apply khi user nhấn nút — không auto-parse khi gõ (tránh clobber)
+
+- **`lib/cv-markdown.ts`** — Thư viện serialize/parse CV ↔ markdown
+  - `serializeToMarkdown(sections)` → string markdown có cấu trúc
+  - `parseMarkdown(md)` → `SectionPatch[]` để apply vào store
+  - Hỗ trợ đầy đủ 8 section types: personal, summary, experience, education, skills, projects, certifications, languages
+  - Pipe-separated lists cho arrays: `Go | PostgreSQL | Docker`
+  - H2 blocks (`## Title — Subtitle`) cho list items
+
+#### Bug fixes
+- **`components/editor/EditorLayout.tsx`** — Đổi left panel từ `overflow-y-auto` sang `flex flex-col overflow-hidden` để MarkdownEditor fill đúng height
+
+---
+
 [1.0.0]: https://github.com/yourname/generate-cv/releases/tag/v1.0.0
