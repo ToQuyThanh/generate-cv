@@ -30,11 +30,7 @@ export function EditorLayout() {
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => router.push('/dashboard')}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <input
-          className="text-sm font-medium bg-transparent border-none outline-none flex-1 max-w-[240px] truncate"
-          value={cvData.title}
-          onChange={(e) => useEditorStore.getState().updateTitle(e.target.value)}
-        />
+        <span className="text-sm font-medium truncate max-w-[200px]">{cvData.title}</span>
         {/* Save status */}
         <div className="flex items-center gap-1 text-xs text-muted-foreground ml-auto">
           {isSaving ? (
