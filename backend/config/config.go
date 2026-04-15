@@ -15,6 +15,7 @@ type Config struct {
 	JWT    JWTConfig
 	Google GoogleConfig
 	Sentry SentryConfig
+	Resend ResendConfig
 }
 
 type AppConfig struct {
@@ -71,6 +72,12 @@ type SentryConfig struct {
 	DSN string
 }
 
+type ResendConfig struct {
+	APIKey  string
+	From    string // e.g. "CV Generator <noreply@yourdomain.com>"
+	AppName string
+}
+
 // Load reads configuration from .env (if present) and environment variables.
 // Environment variables take precedence over .env file values.
 func Load() (*Config, error) {
@@ -93,6 +100,9 @@ func Load() (*Config, error) {
 	v.SetDefault("JWT_REFRESH_TTL_DAYS", 30)
 	v.SetDefault("SENTRY_DSN", "")
 	v.SetDefault("FRONTEND_URL", "http://localhost:3000")
+	v.SetDefault("RESEND_API_KEY", "")
+	v.SetDefault("RESEND_FROM", "CV Generator <noreply@localhost>")
+	v.SetDefault("RESEND_APP_NAME", "CV Generator")
 
 	// Read .env file if it exists (silently ignore if not found)
 	v.SetConfigName(".env")
@@ -145,6 +155,11 @@ func Load() (*Config, error) {
 		},
 		Sentry: SentryConfig{
 			DSN: v.GetString("SENTRY_DSN"),
+		},
+		Resend: ResendConfig{
+			APIKey:  v.GetString("RESEND_API_KEY"),
+			From:    v.GetString("RESEND_FROM"),
+			AppName: v.GetString("RESEND_APP_NAME"),
 		},
 	}
 

@@ -44,7 +44,17 @@ func New(cfg *config.Config, pool *pgxpool.Pool, rdb *redis.Client) *gin.Engine 
 	profileRepo  := repository.NewProfileRepository(pool)
 
 	// ─── Services ─────────────────────────────────────────────────────────────
-	mailer      := email.NewNoOpSender()
+	var mailer service.EmailSender
+	if cfg.Resend.APIKey != "" {
+		mailer = email.NewResendSender(
+			cfg.Resend.APIKey,
+			cfg.Resend.From,
+			cfg.Resend.AppName,
+			cfg.App.FrontendURL,
+		)
+	} else {
+		mailer = email.NewNoOpSender()
+	}
 	authSvc     := service.NewAuthService(cfg, userRepo, refreshRepo, subRepo, resetRepo, mailer)
 	profileSvc  := service.NewProfileService(profileRepo)
 	cvSvc       := service.NewCVService(cvRepo, profileRepo)

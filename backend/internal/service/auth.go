@@ -22,10 +22,10 @@ import (
 // ─── Sentinel errors ──────────────────────────────────────────────────────────
 
 var (
-	ErrEmailTaken       = errors.New("email already registered")
+	ErrEmailTaken         = errors.New("email already registered")
 	ErrInvalidCredentials = errors.New("invalid email or password")
-	ErrTokenNotFound    = errors.New("token not found or expired")
-	ErrPasswordTooWeak  = errors.New("password must be at least 8 characters")
+	ErrTokenNotFound      = errors.New("token not found or expired")
+	ErrPasswordTooWeak    = errors.New("password must be at least 8 characters")
 )
 
 // ─── Interfaces (for mocking in tests) ───────────────────────────────────────
@@ -64,12 +64,12 @@ type EmailSender interface {
 // ─── AuthService ──────────────────────────────────────────────────────────────
 
 type AuthService struct {
-	cfg       *config.Config
-	users     UserRepo
-	tokens    RefreshTokenRepo
-	subs      SubscriptionRepo
-	resets    PasswordResetRepo
-	mailer    EmailSender
+	cfg    *config.Config
+	users  UserRepo
+	tokens RefreshTokenRepo
+	subs   SubscriptionRepo
+	resets PasswordResetRepo
+	mailer EmailSender
 }
 
 func NewAuthService(
