@@ -6,6 +6,99 @@ Phiên bản theo [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.3.0] — 2026-04-15
+
+### Added
+
+#### Auth — Forgot Password & Reset Password Flow
+
+- **`backend/pkg/email/resend.go`** *(mới)* — Resend HTTP client với HTML email template đẹp
+- **`backend/config/config.go`** — Thêm `ResendConfig` (API key, from address, app name)
+- **`backend/internal/router/router.go`** — Auto-select Resend/NoOp sender theo API key; đăng ký 2 route mới:
+  - `POST /api/v1/auth/forgot-password` — nhận email, gửi reset link
+  - `POST /api/v1/auth/reset-password` — nhận token + new_password, cập nhật mật khẩu
+- **`backend/.env.example`** — Thêm 3 biến: `RESEND_API_KEY`, `RESEND_FROM`, `RESEND_APP_NAME`
+- **`.env.example`** (root) — Sync 3 biến Resend
+
+- **`frontend/app/(auth)/forgot-password/page.tsx`** *(mới)* — Trang quên mật khẩu
+  - Form nhập email với validation Zod
+  - Submit gọi `authApi.forgotPassword(email)`
+  - Sau submit chuyển sang **success state** (tránh email enumeration attack — luôn hiện thông báo thành công)
+  - Success state hiển thị icon `MailCheck`, email đã gửi tới, hướng dẫn kiểm tra Spam
+  - Nút "Thử lại với email khác" quay về form
+  - Link "Quay lại đăng nhập"
+  - Layout 2 panel chuẩn (brand left / form right)
+
+- **`frontend/app/(auth)/reset-password/page.tsx`** *(mới)* — Trang đặt lại mật khẩu
+  - Đọc `?token=` từ URL query string qua `useSearchParams` (bọc trong `Suspense`)
+  - **3 trạng thái** được xử lý:
+    1. Không có token → hiển thị cảnh báo + nút "Yêu cầu link mới"
+    2. Form nhập mật khẩu mới + xác nhận (validation: min 8 ký tự, 1 chữ hoa, 1 chữ số)
+    3. Thành công → hiển thị icon `ShieldCheck` + nút "Đăng nhập ngay"
+  - Submit gọi `authApi.resetPassword(token, newPassword)`
+  - Lỗi từ backend (token hết hạn, sai token) hiển thị qua `toast.error`
+  - Layout 2 panel chuẩn
+
+---
+
+## [1.2.0] — 2026-04-14
+
+### Added
+
+#### Editor — Settings tab, Template picker, Custom Section
+
+- **`components/editor/EditorPanel.tsx`** — Thêm 2 tab mới vào tab bar:
+  - **Tab ⚙️ (Settings)** — đổi tên CV, chọn màu chủ đạo (picker + 8 preset), chọn template khác ngay trong editor không cần tạo lại CV
+  - **Tab + Thêm** — thêm section chuẩn còn thiếu (Experience, Education...) hoặc tạo custom section tự do
+  - Standard sections có thể xóa bằng nút Trash trong header của từng tab (trừ `personal`)
+  - Custom section dùng `section.id` làm tab key — hỗ trợ nhiều custom section cùng lúc
+
+- **`components/editor/sections/CustomSection.tsx`** *(mới)* — Editor cho custom section:
+  - Chỉnh sửa tên section inline
+  - Danh sách bullet points tự do (thêm / xóa từng dòng)
+  - Nút "Xóa section này" ở cuối
+
+- **`store/editorStore.ts`** — Thêm 2 action:
+  - `addSection(section)` — thêm section mới vào cuối danh sách
+  - `removeSection(sectionId)` — xóa section khỏi CV
+
+- **`components/editor/EditorLayout.tsx`** — Đổi title input thành `<span>` read-only (việc đổi tên CV chuyển vào Settings tab)
+
+---
+
+## [1.1.0] — 2026-04-14
+
+### Added
+
+#### Editor — Tab navigation & Markdown Session
+
+- **`components/editor/EditorPanel.tsx`** — Refactor từ scroll dọc sang tab navigation
+  - Mỗi section (Cá nhân, Tóm tắt, Kinh nghiệm...) là 1 tab riêng, click để chuyển
+  - Tab **🎨 Màu** — color picker + 8 preset colors
+  - Tab **Markdown** — mở custom markdown session (xem bên dưới)
+  - Visibility toggle hiển thị ngay trong content area của từng tab
+
+- **`components/editor/MarkdownEditor.tsx`** *(mới)* — Component chỉnh sửa toàn bộ CV bằng markdown có cấu trúc
+  - Serialize toàn bộ CV sections → markdown text khi mount
+  - Nút **Áp dụng** parse markdown → update từng section vào store
+  - Nút **Khôi phục** sync lại từ store (bỏ thay đổi chưa apply)
+  - Nút **ℹ️** toggle hướng dẫn cú pháp inline với nút "Dùng mẫu này"
+  - Status bar: số dòng · số ký tự · trạng thái chưa áp dụng
+  - Chỉ apply khi user nhấn nút — không auto-parse khi gõ (tránh clobber)
+
+- **`lib/cv-markdown.ts`** *(mới)* — Thư viện serialize/parse CV ↔ markdown
+  - `serializeToMarkdown(sections)` → string markdown có cấu trúc
+  - `parseMarkdown(md)` → `SectionPatch[]` để apply vào store
+  - Hỗ trợ đầy đủ 8 section types: personal, summary, experience, education, skills, projects, certifications, languages
+  - Pipe-separated lists cho arrays: `Go | PostgreSQL | Docker`
+  - H2 blocks (`## Title — Subtitle`) cho list items
+
+### Fixed
+
+- **`components/editor/EditorLayout.tsx`** — Đổi left panel từ `overflow-y-auto` sang `flex flex-col overflow-hidden` để MarkdownEditor fill đúng height
+
+---
+
 ## [1.0.0] — 2026-04-13
 
 ### 🎉 Phiên bản đầu tiên — Production-ready Docker deployment
@@ -109,71 +202,7 @@ docker compose up -d
 
 ---
 
-### What's next — v1.1.0 (planned)
-
-- [ ] GitHub Actions CI: test → build → push image lên registry
-- [ ] Deploy script SSH tự động
-- [ ] Nginx container tích hợp vào docker-compose với Let's Encrypt
-- [ ] Health dashboard endpoint tổng hợp status tất cả dependencies
-- [ ] Log aggregation (Loki hoặc file-based)
-
----
-
-## [1.1.0] — 2026-04-14
-
-### Added
-
-#### Editor — Tab navigation & Markdown Session
-
-- **`components/editor/EditorPanel.tsx`** — Refactor từ scroll dọc sang tab navigation
-  - Mỗi section (Cá nhân, Tóm tắt, Kinh nghiệm...) là 1 tab riêng, click để chuyển
-  - Tab **🎨 Màu** — color picker + 8 preset colors
-  - Tab **Markdown** — mở custom markdown session (xem bên dưới)
-  - Visibility toggle hiển thị ngay trong content area của từng tab
-
-- **`components/editor/MarkdownEditor.tsx`** — Component mới: chỉnh sửa toàn bộ CV bằng markdown có cấu trúc
-  - Serialize toàn bộ CV sections → markdown text khi mount
-  - Nút **Áp dụng** parse markdown → update từng section vào store
-  - Nút **Khôi phục** sync lại từ store (bỏ thay đổi chưa apply)
-  - Nút **ℹ️** toggle hướng dẫn cú pháp inline với nút "Dùng mẫu này"
-  - Status bar: số dòng · số ký tự · trạng thái chưa áp dụng
-  - Chỉ apply khi user nhấn nút — không auto-parse khi gõ (tránh clobber)
-
-- **`lib/cv-markdown.ts`** — Thư viện serialize/parse CV ↔ markdown
-  - `serializeToMarkdown(sections)` → string markdown có cấu trúc
-  - `parseMarkdown(md)` → `SectionPatch[]` để apply vào store
-  - Hỗ trợ đầy đủ 8 section types: personal, summary, experience, education, skills, projects, certifications, languages
-  - Pipe-separated lists cho arrays: `Go | PostgreSQL | Docker`
-  - H2 blocks (`## Title — Subtitle`) cho list items
-
-#### Bug fixes
-- **`components/editor/EditorLayout.tsx`** — Đổi left panel từ `overflow-y-auto` sang `flex flex-col overflow-hidden` để MarkdownEditor fill đúng height
-
----
-
-## [1.2.0] — 2026-04-14
-
-### Added
-
-#### Editor — Settings tab, Template picker, Custom Section
-
-- **`components/editor/EditorPanel.tsx`** — Thêm 2 tab mới vào tab bar:
-  - **Tab ⚙️ (Settings)** — đổi tên CV, chọn màu chủ đạo (picker + 8 preset), chọn template khác ngay trong editor không cần tạo lại CV
-  - **Tab + Thêm** — thêm section chuẩn còn thiếu (Experience, Education...) hoặc tạo custom section tự do
-  - Standard sections có thể xóa bằng nút Trash trong header của từng tab (trừ `personal`)
-  - Custom section dùng `section.id` làm tab key — hỗ trợ nhiều custom section cùng lúc
-
-- **`components/editor/sections/CustomSection.tsx`** *(mới)* — Editor cho custom section:
-  - Chỉnh sửa tên section inline
-  - Danh sách bullet points tự do (thêm / xóa từng dòng)
-  - Nút "Xóa section này" ở cuối
-
-- **`store/editorStore.ts`** — Thêm 2 action:
-  - `addSection(section)` — thêm section mới vào cuối danh sách
-  - `removeSection(sectionId)` — xóa section khỏi CV
-
-- **`components/editor/EditorLayout.tsx`** — Đổi title input thành `<span>` read-only (việc đổi tên CV chuyển vào Settings tab)
-
----
-
+[1.3.0]: https://github.com/yourname/generate-cv/releases/tag/v1.3.0
+[1.2.0]: https://github.com/yourname/generate-cv/releases/tag/v1.2.0
+[1.1.0]: https://github.com/yourname/generate-cv/releases/tag/v1.1.0
 [1.0.0]: https://github.com/yourname/generate-cv/releases/tag/v1.0.0
