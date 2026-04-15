@@ -1,0 +1,64 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# FILE NÀY DÀNH CHO DEVELOPMENT LOCAL
+#
+# Chỉ khởi động PostgreSQL + Redis + goose migrate.
+# Backend Go và Frontend Next.js chạy trực tiếp trên host (không qua Docker).
+#
+# Để deploy PRODUCTION đầy đủ, dùng docker-compose.yml ở thư mục gốc:
+#   cd ..  &&  docker compose up -d
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: generate_cv_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-generate_cv}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: generate_cv_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    build:
+      context: .
+      dockerfile: docker/goose.Dockerfile
+    container_name: generate_cv_migrate
+    restart: "no"
+    volumes:
+      - ./db/migrations:/migrations
+    command:
+      - "-dir"
+      - "/migrations"
+      - "postgres"
+      - "host=postgres port=5432 user=${DB_USER:-postgres} password=${DB_PASSWORD:-postgres} dbname=${DB_NAME:-generate_cv} sslmode=disable"
+      - "up"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:

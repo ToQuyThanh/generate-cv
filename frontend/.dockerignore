@@ -1,0 +1,44 @@
+# Version control
+.git
+.gitignore
+
+# Next.js build output (rebuilt inside Docker)
+.next/
+out/
+
+# Dependencies (reinstalled inside Docker)
+node_modules/
+
+# Test & dev artifacts
+__tests__/
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+vitest.config.ts
+vitest.setup.ts
+coverage/
+
+# Docs & markdown
+*.md
+docs/
+
+# Sensitive files — NEVER bake into image
+.env
+.env.local
+.env.development
+.env.production
+.env*.local
+!.env.local.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# TypeScript incremental build
+*.tsbuildinfo

@@ -1,0 +1,26 @@
+# Version control
+.git
+.gitignore
+
+# Test & dev artifacts
+*_test.go
+tests/
+docs/
+*.md
+
+# Sensitive files — NEVER bake into image
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+/tmp/
