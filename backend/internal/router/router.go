@@ -14,6 +14,7 @@ import (
 	"github.com/yourname/generate-cv/internal/repository"
 	"github.com/yourname/generate-cv/internal/service"
 	"github.com/yourname/generate-cv/pkg/email"
+	"github.com/yourname/generate-cv/pkg/profileagent"
 )
 
 // New creates and returns the root Gin engine with all routes registered.
@@ -35,13 +36,13 @@ func New(cfg *config.Config, pool *pgxpool.Pool, rdb *redis.Client) *gin.Engine 
 	})
 
 	// ─── Repositories ─────────────────────────────────────────────────────────
-	userRepo     := repository.NewUserRepository(pool)
-	refreshRepo  := repository.NewRefreshTokenRepository(pool)
-	subRepo      := repository.NewSubscriptionRepository(pool)
-	resetRepo    := repository.NewPasswordResetTokenRepository(pool)
+	userRepo := repository.NewUserRepository(pool)
+	refreshRepo := repository.NewRefreshTokenRepository(pool)
+	subRepo := repository.NewSubscriptionRepository(pool)
+	resetRepo := repository.NewPasswordResetTokenRepository(pool)
 	templateRepo := repository.NewTemplateRepository(pool)
-	cvRepo       := repository.NewCVRepository(pool)
-	profileRepo  := repository.NewProfileRepository(pool)
+	cvRepo := repository.NewCVRepository(pool)
+	profileRepo := repository.NewProfileRepository(pool)
 
 	// ─── Services ─────────────────────────────────────────────────────────────
 	var mailer service.EmailSender
@@ -55,20 +56,31 @@ func New(cfg *config.Config, pool *pgxpool.Pool, rdb *redis.Client) *gin.Engine 
 	} else {
 		mailer = email.NewNoOpSender()
 	}
-	authSvc     := service.NewAuthService(cfg, userRepo, refreshRepo, subRepo, resetRepo, mailer)
-	profileSvc  := service.NewProfileService(profileRepo)
-	cvSvc       := service.NewCVService(cvRepo, profileRepo)
-	userSvc     := service.NewUserService(userRepo, subRepo)
+	authSvc := service.NewAuthService(cfg, userRepo, refreshRepo, subRepo, resetRepo, mailer)
+	profileSvc := service.NewProfileService(profileRepo)
+	cvSvc := service.NewCVService(cvRepo, profileRepo)
+	userSvc := service.NewUserService(userRepo, subRepo)
 	templateSvc := service.NewTemplateService(templateRepo)
 
+	// ─── Profile Processing Agent ───────────────────────────────────────────
+	agentConfig := profileagent.Config{
+		BaseURL:    cfg.Agent.BaseURL,
+		Timeout:    cfg.Agent.Timeout(),
+		MaxRetries: cfg.Agent.MaxRetries,
+		RetryDelay: cfg.Agent.RetryDelay(),
+	}
+	agentClient := profileagent.NewClient(agentConfig)
+	agentSvc := service.NewAgentService(agentClient)
+
 	// ─── Handlers ─────────────────────────────────────────────────────────────
-	authHandler     := handler.NewAuthHandler(authSvc)
-	googleHandler   := handler.NewGoogleHandler(cfg)
+	authHandler := handler.NewAuthHandler(authSvc)
+	googleHandler := handler.NewGoogleHandler(cfg)
 	googleHandler.SetAuthService(authSvc)
-	cvHandler       := handler.NewCVHandler(cvSvc)
-	profileHandler  := handler.NewProfileHandler(profileSvc)
-	userHandler     := handler.NewUserHandler(userSvc)
+	cvHandler := handler.NewCVHandler(cvSvc)
+	profileHandler := handler.NewProfileHandler(profileSvc)
+	userHandler := handler.NewUserHandler(userSvc)
 	templateHandler := handler.NewTemplateHandler(templateSvc)
+	agentHandler := handler.NewAgentHandler(agentSvc)
 
 	// ─── API v1 ───────────────────────────────────────────────────────────────
 	v1 := r.Group("/api/v1")
@@ -80,20 +92,20 @@ func New(cfg *config.Config, pool *pgxpool.Pool, rdb *redis.Client) *gin.Engine 
 		// ── Auth (public) ─────────────────────────────────────────────────────
 		auth := v1.Group("/auth")
 		{
-			auth.POST("/register",        authHandler.Register)
-			auth.POST("/login",           authHandler.Login)
-			auth.POST("/refresh",         authHandler.Refresh)
-			auth.POST("/logout",          authHandler.Logout)
+			auth.POST("/register", authHandler.Register)
+			auth.POST("/login", authHandler.Login)
+			auth.POST("/refresh", authHandler.Refresh)
+			auth.POST("/logout", authHandler.Logout)
 			auth.POST("/forgot-password", authHandler.ForgotPassword)
-			auth.POST("/reset-password",  authHandler.ResetPassword)
-			auth.GET("/google",           googleHandler.Redirect)
-			auth.GET("/google/callback",  googleHandler.Callback)
+			auth.POST("/reset-password", authHandler.ResetPassword)
+			auth.GET("/google", googleHandler.Redirect)
+			auth.GET("/google/callback", googleHandler.Callback)
 		}
 
 		// ── Templates (public) ────────────────────────────────────────────────
 		tmpl := v1.Group("/templates")
 		{
-			tmpl.GET("",     templateHandler.List)
+			tmpl.GET("", templateHandler.List)
 			tmpl.GET("/:id", templateHandler.Get)
 		}
 
@@ -112,9 +124,9 @@ func New(cfg *config.Config, pool *pgxpool.Pool, rdb *redis.Client) *gin.Engine 
 				users.Use(middleware.RateLimit(rdb, 60, time.Minute))
 			}
 			{
-				users.GET("/me",              userHandler.GetMe)
-				users.PATCH("/me",            userHandler.UpdateMe)
-				users.DELETE("/me",           userHandler.DeleteMe)
+				users.GET("/me", userHandler.GetMe)
+				users.PATCH("/me", userHandler.UpdateMe)
+				users.DELETE("/me", userHandler.DeleteMe)
 				users.GET("/me/subscription", userHandler.GetSubscription)
 			}
 
@@ -124,25 +136,25 @@ func New(cfg *config.Config, pool *pgxpool.Pool, rdb *redis.Client) *gin.Engine 
 				profiles.Use(middleware.RateLimit(rdb, 120, time.Minute))
 			}
 			{
-				profiles.GET("",    profileHandler.List)
-				profiles.POST("",   profileHandler.Create)
-				profiles.GET("/:id",    profileHandler.Get)
-				profiles.PUT("/:id",    profileHandler.Update)
+				profiles.GET("", profileHandler.List)
+				profiles.POST("", profileHandler.Create)
+				profiles.GET("/:id", profileHandler.Get)
+				profiles.PUT("/:id", profileHandler.Update)
 				profiles.DELETE("/:id", profileHandler.Delete)
 				profiles.PATCH("/:id/default", profileHandler.SetDefault)
 
 				// Sections
-				profiles.GET("/:id/sections",          profileHandler.ListSections)
-				profiles.POST("/:id/sections",         profileHandler.CreateSection)
-				profiles.PUT("/:id/sections/:sectionId",    profileHandler.UpdateSection)
+				profiles.GET("/:id/sections", profileHandler.ListSections)
+				profiles.POST("/:id/sections", profileHandler.CreateSection)
+				profiles.PUT("/:id/sections/:sectionId", profileHandler.UpdateSection)
 				profiles.DELETE("/:id/sections/:sectionId", profileHandler.DeleteSection)
-				profiles.PATCH("/:id/sections/reorder",     profileHandler.ReorderSections)
+				profiles.PATCH("/:id/sections/reorder", profileHandler.ReorderSections)
 
 				// Items (nested under profile + section for ownership chain)
-				profiles.POST("/:id/sections/:sectionId/items",              profileHandler.CreateItem)
-				profiles.PUT("/:id/sections/:sectionId/items/:itemId",       profileHandler.UpdateItem)
-				profiles.DELETE("/:id/sections/:sectionId/items/:itemId",    profileHandler.DeleteItem)
-				profiles.PATCH("/:id/sections/:sectionId/items/reorder",     profileHandler.ReorderItems)
+				profiles.POST("/:id/sections/:sectionId/items", profileHandler.CreateItem)
+				profiles.PUT("/:id/sections/:sectionId/items/:itemId", profileHandler.UpdateItem)
+				profiles.DELETE("/:id/sections/:sectionId/items/:itemId", profileHandler.DeleteItem)
+				profiles.PATCH("/:id/sections/:sectionId/items/reorder", profileHandler.ReorderItems)
 			}
 
 			// ── CV ────────────────────────────────────────────────────────────
@@ -151,17 +163,35 @@ func New(cfg *config.Config, pool *pgxpool.Pool, rdb *redis.Client) *gin.Engine 
 				cvs.Use(middleware.RateLimit(rdb, 120, time.Minute))
 			}
 			{
-				cvs.GET("",                    cvHandler.List)
-				cvs.POST("",                   cvHandler.Create)
-				cvs.GET("/:id",                cvHandler.Get)
-				cvs.PATCH("/:id",              cvHandler.Update)
-				cvs.DELETE("/:id",             cvHandler.Delete)
-				cvs.POST("/:id/duplicate",     cvHandler.Duplicate)
-				cvs.PUT("/:id/overrides",      cvHandler.UpdateOverrides)
-				cvs.POST("/:id/sync-profile",  cvHandler.SyncProfile)
+				cvs.GET("", cvHandler.List)
+				cvs.POST("", cvHandler.Create)
+				cvs.GET("/:id", cvHandler.Get)
+				cvs.PATCH("/:id", cvHandler.Update)
+				cvs.DELETE("/:id", cvHandler.Delete)
+				cvs.POST("/:id/duplicate", cvHandler.Duplicate)
+				cvs.PUT("/:id/overrides", cvHandler.UpdateOverrides)
+				cvs.POST("/:id/sync-profile", cvHandler.SyncProfile)
+			}
+
+			// ── Profile Processing Agent (AI) ─────────────────────────────
+			// Requires paid subscription and has stricter rate limits
+			agent := protected.Group("/agent")
+			if rdb != nil {
+				agent.Use(middleware.RateLimit(rdb, 10, time.Minute)) // 10 req/min for AI
+				agent.Use(middleware.RequireSubscription(subRepo))
+			}
+			{
+				agent.POST("/parse", agentHandler.ParseCV)
+				agent.POST("/edit", agentHandler.EditProfile)
+				agent.POST("/tailor", agentHandler.TailorProfile)
+				agent.POST("/score", agentHandler.ScoreProfile)
+				agent.POST("/pipeline", agentHandler.RunPipeline)
 			}
 		}
 	}
+
+	// Agent health check (public, for monitoring)
+	r.GET("/api/v1/agent/health", agentHandler.HealthCheck)
 
 	return r
 }

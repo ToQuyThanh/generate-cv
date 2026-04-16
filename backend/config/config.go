@@ -3,9 +3,26 @@ package config
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/spf13/viper"
 )
+
+// Timeout returns the timeout as a time.Duration
+func (a AgentConfig) Timeout() time.Duration {
+	if a.TimeoutSec == 0 {
+		return 30 * time.Second
+	}
+	return time.Duration(a.TimeoutSec) * time.Second
+}
+
+// RetryDelay returns the retry delay as a time.Duration
+func (a AgentConfig) RetryDelay() time.Duration {
+	if a.RetryDelaySec == 0 {
+		return 1 * time.Second
+	}
+	return time.Duration(a.RetryDelaySec) * time.Second
+}
 
 // Config holds all application configuration loaded from environment / .env file.
 type Config struct {
@@ -16,6 +33,7 @@ type Config struct {
 	Google GoogleConfig
 	Sentry SentryConfig
 	Resend ResendConfig
+	Agent  AgentConfig
 }
 
 type AppConfig struct {
@@ -78,6 +96,13 @@ type ResendConfig struct {
 	AppName string
 }
 
+type AgentConfig struct {
+	BaseURL       string
+	TimeoutSec    int
+	MaxRetries    int
+	RetryDelaySec int
+}
+
 // Load reads configuration from .env (if present) and environment variables.
 // Environment variables take precedence over .env file values.
 func Load() (*Config, error) {
@@ -103,6 +128,10 @@ func Load() (*Config, error) {
 	v.SetDefault("RESEND_API_KEY", "")
 	v.SetDefault("RESEND_FROM", "CV Generator <noreply@localhost>")
 	v.SetDefault("RESEND_APP_NAME", "CV Generator")
+	v.SetDefault("AGENT_BASE_URL", "http://localhost:8000")
+	v.SetDefault("AGENT_TIMEOUT_SEC", 30)
+	v.SetDefault("AGENT_MAX_RETRIES", 3)
+	v.SetDefault("AGENT_RETRY_DELAY_SEC", 1)
 
 	// Read .env file if it exists (silently ignore if not found)
 	v.SetConfigName(".env")
@@ -160,6 +189,12 @@ func Load() (*Config, error) {
 			APIKey:  v.GetString("RESEND_API_KEY"),
 			From:    v.GetString("RESEND_FROM"),
 			AppName: v.GetString("RESEND_APP_NAME"),
+		},
+		Agent: AgentConfig{
+			BaseURL:       v.GetString("AGENT_BASE_URL"),
+			TimeoutSec:    v.GetInt("AGENT_TIMEOUT_SEC"),
+			MaxRetries:    v.GetInt("AGENT_MAX_RETRIES"),
+			RetryDelaySec: v.GetInt("AGENT_RETRY_DELAY_SEC"),
 		},
 	}
 
