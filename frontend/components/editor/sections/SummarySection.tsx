@@ -14,25 +14,40 @@ interface Props { section: CVSection }
 
 export function SummarySection({ section }: Props) {
   const { updateSection, cvData } = useEditorStore()
-  const { subscription } = useAuthStore()
+  const { subscription, isHydrated } = useAuthStore()
   const data = (section.data as Partial<SummaryData>) ?? {}
   const [suggesting, setSuggesting] = useState(false)
 
-  const isPaid = subscription?.plan !== 'free'
+  // isPaid: chỉ true khi đã hydrate XNG và subscription tồn tại với plan paid + status active
+  const isPaid =
+    isHydrated &&
+    subscription !== null &&
+    subscription.plan !== 'free' &&
+    subscription.status === 'active'
 
   const handleAISuggest = async () => {
+    if (!isHydrated) return // chưa hydrate xong, không làm gì cả
+
     if (!isPaid) {
       toast.info('Nâng cấp gói để dùng AI gợi ý')
       return
     }
     if (!cvData) return
+
     setSuggesting(true)
     try {
       const res = await aiApi.suggestSummary({ cv_id: cvData.id })
       updateSection(section.id, { data: { ...section.data, content: res.suggestion } })
       toast.success('Đã áp dụng gợi ý AI')
-    } catch {
-      toast.error('AI gặp lỗi, thử lại sau')
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response?.status
+      if (status === 401) {
+        toast.error('Phiên làm việc hết hạn, vui lòng đăng nhập lại')
+      } else if (status === 403) {
+        toast.error('Cần nâng cấp gói để dùng tính năng này')
+      } else {
+        toast.error('AI gặp lỗi, thử lại sau')
+      }
     } finally {
       setSuggesting(false)
     }
@@ -47,7 +62,7 @@ export function SummarySection({ section }: Props) {
           size="sm"
           className="h-6 gap-1 text-xs text-primary px-2"
           onClick={handleAISuggest}
-          disabled={suggesting}
+          disabled={suggesting || !isHydrated}
         >
           {suggesting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
           Gợi ý AI

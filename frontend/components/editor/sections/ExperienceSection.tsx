@@ -28,13 +28,13 @@ const emptyItem = (): ExperienceItem => ({
 
 export function ExperienceSection({ section }: Props) {
   const { updateSection, cvData } = useEditorStore()
-  const { subscription } = useAuthStore()
+  const { subscription, isHydrated } = useAuthStore()
   const data = section.data as unknown as ExperienceData
   const items: ExperienceItem[] = data?.items ?? []
   const [expandedId, setExpandedId] = useState<string | null>(items[0]?.id ?? null)
   const [suggestingId, setSuggestingId] = useState<string | null>(null)
   const [tagInputs, setTagInputs] = useState<Record<string, string>>({})
-  const isPaid = subscription?.plan !== 'free'
+  const isPaid = isHydrated && subscription !== null && subscription.plan !== 'free' && subscription.status === 'active'
 
   const save = (updated: ExperienceItem[]) =>
     updateSection(section.id, { data: { ...section.data, items: updated } })
@@ -80,6 +80,7 @@ export function ExperienceSection({ section }: Props) {
   }
 
   const handleAISuggest = async (item: ExperienceItem) => {
+    if (!isHydrated) return
     if (!isPaid) { toast.info('Nâng cấp gói để dùng AI'); return }
     if (!cvData) return
     setSuggestingId(item.id)
@@ -92,8 +93,15 @@ export function ExperienceSection({ section }: Props) {
       })
       patchItem(item.id, { description: res.suggestion })
       toast.success('Đã áp dụng gợi ý AI')
-    } catch {
-      toast.error('AI gặp lỗi, thử lại sau')
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response?.status
+      if (status === 401) {
+        toast.error('Phiên làm việc hết hạn, vui lòng đăng nhập lại')
+      } else if (status === 403) {
+        toast.error('Cần nâng cấp gói để dùng tính năng này')
+      } else {
+        toast.error('AI gặp lỗi, thử lại sau')
+      }
     } finally {
       setSuggestingId(null)
     }
