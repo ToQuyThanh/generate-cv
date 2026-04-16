@@ -39,6 +39,9 @@ type Client struct {
 
 // NewClient creates a new Profile Agent client
 func NewClient(config Config) *Client {
+	if config.BaseURL == "" {
+		config.BaseURL = DefaultConfig().BaseURL
+	}
 	if config.Timeout == 0 {
 		config.Timeout = DefaultConfig().Timeout
 	}
