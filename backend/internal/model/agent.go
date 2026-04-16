@@ -1,7 +1,7 @@
 package model
 
 import (
-	"github.com/yourname/generate-cv/backend/pkg/profileagent"
+	"github.com/yourname/generate-cv/pkg/profileagent"
 )
 
 // TokenUsage represents token consumption from Agent API

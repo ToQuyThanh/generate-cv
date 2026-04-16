@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yourname/generate-cv/backend/pkg/profileagent"
+	"github.com/yourname/generate-cv/pkg/profileagent"
 )
 
 // AgentService provides business logic for Profile Processing Agent integration

@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/yourname/generate-cv/backend/internal/model"
-	"github.com/yourname/generate-cv/backend/internal/service"
+	"github.com/yourname/generate-cv/internal/model"
+	"github.com/yourname/generate-cv/internal/service"
 )
 
 // AgentHandler handles HTTP requests for Profile Processing Agent endpoints

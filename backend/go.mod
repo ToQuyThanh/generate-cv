@@ -3,6 +3,7 @@ module github.com/yourname/generate-cv
 go 1.22
 
 require (
+	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/getsentry/sentry-go v0.27.0
 	github.com/gin-gonic/gin v1.10.0
 	github.com/golang-jwt/jwt/v5 v5.2.1
