@@ -83,3 +83,47 @@ type AgentPipelineResponse struct {
 	Scorecard       *ScoreBreakdown        `json:"scorecard,omitempty"`
 	Usage           TokenUsage             `json:"usage"`
 }
+
+// ─── AI Inline Suggestions ────────────────────────────────────────────────────
+
+// AIAnalyzeJDRequest is the body for POST /ai/analyze-jd
+type AIAnalyzeJDRequest struct {
+	CVID           string `json:"cv_id" binding:"required"`
+	JobDescription string `json:"job_description" binding:"required"`
+}
+
+// AIAnalyzeJDResponse is returned by POST /ai/analyze-jd
+type AIAnalyzeJDResponse struct {
+	Keywords        []string `json:"keywords"`
+	MissingKeywords []string `json:"missing_keywords"`
+	MatchScore      int      `json:"match_score"`
+	Suggestions     []string `json:"suggestions"`
+}
+
+// AISuggestSummaryRequest is the body for POST /ai/suggest-summary
+type AISuggestSummaryRequest struct {
+	CVID            string `json:"cv_id" binding:"required"`
+	JobTitle        string `json:"job_title,omitempty"`
+	YearsExperience int    `json:"years_experience,omitempty"`
+}
+
+// AISuggestExperienceRequest is the body for POST /ai/suggest-experience
+type AISuggestExperienceRequest struct {
+	CVID               string `json:"cv_id" binding:"required"`
+	Company            string `json:"company" binding:"required"`
+	Position           string `json:"position" binding:"required"`
+	CurrentDescription string `json:"current_description,omitempty"`
+}
+
+// AIRewriteSectionRequest is the body for POST /ai/rewrite-section
+type AIRewriteSectionRequest struct {
+	CVID      string `json:"cv_id" binding:"required"`
+	SectionID string `json:"section_id" binding:"required"`
+	Content   string `json:"content" binding:"required"`
+	Tone      string `json:"tone" binding:"required"` // professional | concise | impactful
+}
+
+// AISuggestionResponse is the generic single-text response for AI suggest endpoints
+type AISuggestionResponse struct {
+	Suggestion string `json:"suggestion"`
+}

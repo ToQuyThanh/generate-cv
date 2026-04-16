@@ -82,6 +82,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool, rdb *redis.Client) *gin.Engine 
 	userHandler := handler.NewUserHandler(userSvc)
 	templateHandler := handler.NewTemplateHandler(templateSvc)
 	agentHandler := handler.NewAgentHandler(agentSvc)
+	aiHandler := handler.NewAIHandler(agentSvc, cvRepo)
 
 	// ─── API v1 ───────────────────────────────────────────────────────────────
 	v1 := r.Group("/api/v1")
@@ -187,6 +188,19 @@ func New(cfg *config.Config, pool *pgxpool.Pool, rdb *redis.Client) *gin.Engine 
 				agent.POST("/tailor", agentHandler.TailorProfile)
 				agent.POST("/score", agentHandler.ScoreProfile)
 				agent.POST("/pipeline", agentHandler.RunPipeline)
+			}
+
+			// ── AI Inline Suggestions (editor assistant) ───────────────────
+			ai := protected.Group("/ai")
+			if rdb != nil {
+				ai.Use(middleware.RateLimit(rdb, 20, time.Minute)) // 20 req/min for inline AI
+				ai.Use(middleware.RequireSubscription(middlewareSubRepo))
+			}
+			{
+				ai.POST("/analyze-jd", aiHandler.AnalyzeJD)
+				ai.POST("/suggest-summary", aiHandler.SuggestSummary)
+				ai.POST("/suggest-experience", aiHandler.SuggestExperience)
+				ai.POST("/rewrite-section", aiHandler.RewriteSection)
 			}
 		}
 	}
