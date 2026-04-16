@@ -523,3 +523,75 @@ export interface PaymentHistoryResponse {
   data: PaymentTransaction[]
   meta: PaymentHistoryMeta
 }
+
+// ─── Profile Processing Agent ────────────────────────────────────────────────
+
+export interface TokenUsage {
+  prompt_tokens: number
+  completion_tokens: number
+  total_tokens: number
+}
+
+export interface AgentParseResponse {
+  profile: Record<string, unknown>
+  usage: TokenUsage
+}
+
+export interface AgentEditRequest {
+  profile: Record<string, unknown>
+  instruction: string
+}
+
+export interface AgentEditResponse {
+  profile: Record<string, unknown>
+  usage: TokenUsage
+}
+
+export interface AgentTailorRequest {
+  profile: Record<string, unknown>
+  job_description: string
+  user_prompt?: string
+}
+
+export interface KeywordReport {
+  present: string[]
+  partial: string[]
+  missing: string[]
+}
+
+export interface AgentTailorResponse {
+  profile: Record<string, unknown>
+  keyword_report: KeywordReport
+  relevance_score: number
+  usage: TokenUsage
+}
+
+export interface AgentScoreRequest {
+  profile: Record<string, unknown>
+  job_description?: string
+  user_prompt?: string
+}
+
+export interface ScoreBreakdown {
+  completeness: number
+  relevance: number
+  impact: number
+  presentation: number
+  ats_optimized: number
+}
+
+export interface AgentScoreResponse {
+  overall_score: number
+  breakdown: ScoreBreakdown
+  recommendations: string[]
+  usage: TokenUsage
+}
+
+export interface AgentPipelineResponse {
+  parsed_profile: Record<string, unknown>
+  tailored_profile?: Record<string, unknown>
+  keyword_report?: KeywordReport
+  relevance_score?: number
+  scorecard?: ScoreBreakdown
+  usage: TokenUsage
+}
