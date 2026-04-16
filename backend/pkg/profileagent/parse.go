@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"mime/multipart"
 	"net/http"
 	"time"
@@ -52,9 +53,11 @@ func (c *Client) ParseCV(ctx context.Context, file io.Reader, filename string, p
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
 	// Use extended timeout for parse operations
+	log.Printf("[profileagent] POST %s", url)
 	client := &http.Client{Timeout: 60 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
+		log.Printf("[profileagent] POST %s failed: %v", url, err)
 		return nil, fmt.Errorf("failed to execute request: %w", err)
 	}
 	defer resp.Body.Close()
@@ -67,8 +70,10 @@ func (c *Client) ParseCV(ctx context.Context, file io.Reader, filename string, p
 	if resp.StatusCode >= 400 {
 		var errResp ErrorResponse
 		if err := json.Unmarshal(respBody, &errResp); err == nil && errResp.Detail != "" {
+			log.Printf("[profileagent] POST %s → %d: %s", url, resp.StatusCode, errResp.Detail)
 			return nil, fmt.Errorf("parse failed (%d): %s", resp.StatusCode, errResp.Detail)
 		}
+		log.Printf("[profileagent] POST %s → %d: %s", url, resp.StatusCode, string(respBody))
 		return nil, fmt.Errorf("parse failed (%d): %s", resp.StatusCode, string(respBody))
 	}
 

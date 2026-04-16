@@ -48,6 +48,8 @@ func main() {
 	defer rdb.Close()
 	log.Println("✅  Connected to Redis")
 
+	log.Printf("🤖  Agent base URL: %s", cfg.Agent.BaseURL)
+
 	// 5. Build router
 	r := router.New(cfg, pool, rdb)
 

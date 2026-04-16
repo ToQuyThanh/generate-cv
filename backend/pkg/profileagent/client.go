@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -42,6 +44,7 @@ func NewClient(config Config) *Client {
 	if config.BaseURL == "" {
 		config.BaseURL = DefaultConfig().BaseURL
 	}
+	config.BaseURL = strings.TrimRight(strings.TrimSpace(config.BaseURL), "/")
 	if config.Timeout == 0 {
 		config.Timeout = DefaultConfig().Timeout
 	}
@@ -65,6 +68,12 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body io.Rea
 	url := c.config.BaseURL + path
 
 	operation := func() (*http.Response, error) {
+		// Reset reader position for retries (bytes.Reader implements io.Seeker)
+		if seeker, ok := body.(io.Seeker); ok {
+			if _, err := seeker.Seek(0, io.SeekStart); err != nil {
+				return nil, fmt.Errorf("failed to reset request body: %w", err)
+			}
+		}
 		req, err := http.NewRequestWithContext(ctx, method, url, body)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create request: %w", err)
@@ -90,7 +99,7 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body io.Rea
 
 	// Configure exponential backoff
 	notify := func(err error, duration time.Duration) {
-		// Could log retry attempts here
+		log.Printf("[profileagent] retrying %s %s after error: %v (wait %.1fs)", method, url, err, duration.Seconds())
 	}
 
 	backOffConfig := backoff.NewExponentialBackOff()
@@ -103,7 +112,7 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body io.Rea
 
 // doJSONRequest performs a JSON request and decodes the response
 func (c *Client) doJSONRequest(ctx context.Context, method, path string, requestBody interface{}, response interface{}) error {
-	var body io.Reader
+	var body io.ReadSeeker
 	var contentType string
 
 	if requestBody != nil {
@@ -117,6 +126,7 @@ func (c *Client) doJSONRequest(ctx context.Context, method, path string, request
 
 	resp, err := c.doRequest(ctx, method, path, body, contentType)
 	if err != nil {
+		log.Printf("[profileagent] %s %s%s failed: %v", method, c.config.BaseURL, path, err)
 		return err
 	}
 	defer resp.Body.Close()

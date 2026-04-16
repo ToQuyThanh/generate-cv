@@ -134,9 +134,7 @@ func Load() (*Config, error) {
 	v.SetDefault("AGENT_RETRY_DELAY_SEC", 1)
 
 	// Read .env file if it exists (silently ignore if not found)
-	v.SetConfigName(".env")
-	v.SetConfigType("env")
-	v.AddConfigPath(".")
+	v.SetConfigFile(".env")
 	_ = v.ReadInConfig()
 
 	// Override with actual environment variables
