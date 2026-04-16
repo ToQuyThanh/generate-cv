@@ -39,6 +39,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool, rdb *redis.Client) *gin.Engine 
 	userRepo := repository.NewUserRepository(pool)
 	refreshRepo := repository.NewRefreshTokenRepository(pool)
 	subRepo := repository.NewSubscriptionRepository(pool)
+	middlewareSubRepo := middleware.NewSubscriptionRepository(pool)
 	resetRepo := repository.NewPasswordResetTokenRepository(pool)
 	templateRepo := repository.NewTemplateRepository(pool)
 	cvRepo := repository.NewCVRepository(pool)
@@ -178,7 +179,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool, rdb *redis.Client) *gin.Engine 
 			agent := protected.Group("/agent")
 			if rdb != nil {
 				agent.Use(middleware.RateLimit(rdb, 10, time.Minute)) // 10 req/min for AI
-				agent.Use(middleware.RequireSubscription(subRepo))
+				agent.Use(middleware.RequireSubscription(middlewareSubRepo))
 			}
 			{
 				agent.POST("/parse", agentHandler.ParseCV)
