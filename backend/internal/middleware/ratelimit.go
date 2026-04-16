@@ -14,16 +14,18 @@ import (
 // RateLimit returns a middleware that limits requests per authenticated userID
 // using a Redis sliding-window algorithm.
 //
+//   - keyPrefix: namespace for the rate limit bucket (e.g. "ai", "agent"); keeps
+//     different route groups from sharing counters.
 //   - maxReq: maximum number of requests allowed within the window
 //   - window: duration of the sliding window (e.g. time.Minute)
 //
 // The middleware must be placed AFTER AuthJWT so that GetUserID works.
 // On Redis failure it fails open (lets the request through) to avoid
 // cascading Redis downtime into API downtime.
-func RateLimit(rdb *redis.Client, maxReq int, window time.Duration) gin.HandlerFunc {
+func RateLimit(rdb *redis.Client, keyPrefix string, maxReq int, window time.Duration) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID := GetUserID(c)
-		key := fmt.Sprintf("rl:user:%s", userID.String())
+		key := fmt.Sprintf("rl:%s:user:%s", keyPrefix, userID.String())
 
 		now := time.Now()
 		windowStart := now.Add(-window).UnixMilli()

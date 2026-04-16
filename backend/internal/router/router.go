@@ -123,7 +123,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool, rdb *redis.Client) *gin.Engine 
 			// ── User ──────────────────────────────────────────────────────────
 			users := protected.Group("/users")
 			if rdb != nil {
-				users.Use(middleware.RateLimit(rdb, 60, time.Minute))
+				users.Use(middleware.RateLimit(rdb, "users", 60, time.Minute))
 			}
 			{
 				users.GET("/me", userHandler.GetMe)
@@ -135,7 +135,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool, rdb *redis.Client) *gin.Engine 
 			// ── Profiles ──────────────────────────────────────────────────────
 			profiles := protected.Group("/profiles")
 			if rdb != nil {
-				profiles.Use(middleware.RateLimit(rdb, 120, time.Minute))
+				profiles.Use(middleware.RateLimit(rdb, "profiles", 120, time.Minute))
 			}
 			{
 				profiles.GET("", profileHandler.List)
@@ -162,7 +162,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool, rdb *redis.Client) *gin.Engine 
 			// ── CV ────────────────────────────────────────────────────────────
 			cvs := protected.Group("/cvs")
 			if rdb != nil {
-				cvs.Use(middleware.RateLimit(rdb, 120, time.Minute))
+				cvs.Use(middleware.RateLimit(rdb, "cvs", 120, time.Minute))
 			}
 			{
 				cvs.GET("", cvHandler.List)
@@ -179,7 +179,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool, rdb *redis.Client) *gin.Engine 
 			// Requires paid subscription and has stricter rate limits
 			agent := protected.Group("/agent")
 			if rdb != nil {
-				agent.Use(middleware.RateLimit(rdb, 10, time.Minute)) // 10 req/min for AI
+				agent.Use(middleware.RateLimit(rdb, "agent", 10, time.Minute)) // 10 req/min for AI
 				agent.Use(middleware.RequireSubscription(middlewareSubRepo))
 			}
 			{
@@ -193,7 +193,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool, rdb *redis.Client) *gin.Engine 
 			// ── AI Inline Suggestions (editor assistant) ───────────────────
 			ai := protected.Group("/ai")
 			if rdb != nil {
-				ai.Use(middleware.RateLimit(rdb, 20, time.Minute)) // 20 req/min for inline AI
+				ai.Use(middleware.RateLimit(rdb, "ai", 60, time.Minute)) // 60 req/min for inline AI
 				ai.Use(middleware.RequireSubscription(middlewareSubRepo))
 			}
 			{
