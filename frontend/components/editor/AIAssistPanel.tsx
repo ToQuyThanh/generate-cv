@@ -16,6 +16,19 @@ import type { AIAnalyzeJDResponse } from '@/types'
 
 type TabId = 'analyze' | 'summary' | 'experience' | 'rewrite'
 
+function handleApiError(err: unknown) {
+  const status = (err as { response?: { status?: number } })?.response?.status
+  if (status === 401) {
+    toast.error('Phiên làm việc hết hạn, vui lòng đăng nhập lại')
+  } else if (status === 403) {
+    toast.error('Cần nâng cấp gói để dùng tính năng này')
+  } else if (status === 429) {
+    toast.error('Quá nhiều yêu cầu, vui lòng thử lại sau ít phút')
+  } else {
+    toast.error('AI gặp lỗi, thử lại sau')
+  }
+}
+
 const TABS: { id: TabId; label: string; icon: ReactNode }[] = [
   { id: 'analyze',    label: 'Phân tích JD',   icon: <FileSearch className="h-3.5 w-3.5" /> },
   { id: 'summary',    label: 'Tóm tắt',         icon: <PenLine className="h-3.5 w-3.5" /> },
@@ -50,7 +63,7 @@ function AnalyzeTab({ cvId, isPaid }: { cvId: string; isPaid: boolean }) {
     setLoading(true); setResult(null)
     try {
       setResult(await aiApi.analyzeJD({ cv_id: cvId, job_description: jd }))
-    } catch { toast.error('AI gặp lỗi, thử lại sau') }
+    } catch (err) { handleApiError(err) }
     finally { setLoading(false) }
   }
 
@@ -138,7 +151,7 @@ function SummaryTab({ cvId, isPaid }: { cvId: string; isPaid: boolean }) {
         years_experience: years ? parseInt(years) : undefined,
       })
       setResult(res.suggestion)
-    } catch { toast.error('AI gặp lỗi, thử lại sau') }
+    } catch (err) { handleApiError(err) }
     finally { setLoading(false) }
   }
 
@@ -200,7 +213,7 @@ function ExperienceTab({ cvId, isPaid }: { cvId: string; isPaid: boolean }) {
     try {
       const res = await aiApi.suggestExperience({ cv_id: cvId, company, position, current_description: currentDesc || undefined })
       setResult(res.suggestion)
-    } catch { toast.error('AI gặp lỗi, thử lại sau') }
+    } catch (err) { handleApiError(err) }
     finally { setLoading(false) }
   }
 
@@ -262,7 +275,7 @@ function RewriteTab({ cvId, isPaid }: { cvId: string; isPaid: boolean }) {
     try {
       const res = await aiApi.rewriteSection({ cv_id: cvId, section_id: 'custom', content, tone })
       setResult(res.suggestion)
-    } catch { toast.error('AI gặp lỗi, thử lại sau') }
+    } catch (err) { handleApiError(err) }
     finally { setLoading(false) }
   }
 

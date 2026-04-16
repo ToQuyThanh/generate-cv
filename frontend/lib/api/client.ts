@@ -43,10 +43,17 @@ apiClient.interceptors.response.use(
       return Promise.reject(error)
     }
 
-    // Không có refresh token nghĩa là user chưa login (vd: đang gọi /auth/login với sai credentials)
-    // → reject ngay, không cố refresh (tránh redirect về /login làm mất toast error)
+    // Không có refresh token:
+    // - Nếu đây là auth endpoint (login/register...) → reject thầm lặng, giữ toast error
+    // - Nếu là protected endpoint → redirect về /login vì session đã hết
     const storedRefresh = localStorage.getItem(REFRESH_TOKEN_KEY)
     if (!storedRefresh) {
+      const isAuthEndpoint = original.url?.includes('/auth/')
+      if (!isAuthEndpoint && typeof window !== 'undefined') {
+        localStorage.removeItem(TOKEN_KEY)
+        try { localStorage.removeItem('gcv-auth') } catch {}
+        window.location.href = '/login'
+      }
       return Promise.reject(error)
     }
 
